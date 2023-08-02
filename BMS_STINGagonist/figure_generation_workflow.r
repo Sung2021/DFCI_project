@@ -163,6 +163,30 @@ lapply(names(l), function(name) {
   write.csv(l[[name]], paste0(name, '.mn3.4.deg.csv'), row.names = T)
 })
 
+
+## generate the combined DGE file
+library(dplyr)
+
+# Define the cell types in the desired order
+cell_types <- c('CORL47', 'Fibroblast', 'HUVEC', 'Monocyte', 'NK')
+
+# Get the list of files matching the pattern 'deg.csv'
+fs <- list.files(path = '.', pattern = 'deg.csv', full.names = TRUE)
+
+# Function to read and preprocess each CSV file
+read_and_preprocess_csv <- function(file_path, cell_type) {
+  df <- read.csv(file_path)  # Read the CSV file
+  df$cell_type <- cell_type  # Add the 'cell_type' column and fill with the specified value
+  return(df)
+}
+
+# Read and preprocess all CSV files, and combine them using rbind
+combined_data <- do.call(rbind, mapply(read_and_preprocess_csv, fs, cell_types, SIMPLIFY = FALSE))
+combined_data = combined_data[,-1]
+combined_data$cell_type %>% table()
+combined_data %>% write.csv('DEG.combined.csv')
+
+
 # plot volcano
 p=mks.huvec %>% 
   ggplot(aes(avg_log2FC, -log10(p_val_adj), color=DE)) + 
@@ -558,3 +582,5 @@ plots <- lapply(1:length(cell_types), function(i) {
 
 # combine plots
 cowplot::plot_grid(plotlist = plots, nrow = 1)
+
+obj.srt@meta.data[1:3,]
