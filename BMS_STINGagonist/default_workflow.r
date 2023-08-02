@@ -198,6 +198,26 @@ plot_volcano=function(mks=mks, celltype='NK'){
     ggeasy::easy_center_title() ## to center title
   print(p)
 }
+plot_volcano_text=function(mks=mks, celltype='NK'){
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  fc=1.2
+  p=mks %>% 
+    ggplot(aes(avg_log2FC, -log10(p_val_adj), color=DE)) + 
+    geom_point(size=1, alpha=0.5) + 
+    scale_color_manual(values = c('red','blue','grey')) +
+    theme_classic() +
+    geom_vline(xintercept = c(-log2(fc),log2(fc)), color='grey') +
+    geom_hline(yintercept = -log10(0.05),color='grey') +
+    guides(colour = guide_legend(override.aes = list(size=5))) +
+    ggtitle(paste0(celltype,' population')) +
+    # Use geom_text with hjust argument to adjust label position
+    geom_text(aes(label = labels), size = 2.5, show.legend = FALSE, hjust = 0, nudge_x = 0.01) +
+    ggeasy::easy_center_title() ## to center title
+  
+  print(p)
+}
+
 plot_volcano(mks = mks.nk,celltype = 'NK')
 plot_volcano(mks = mks.huvec,celltype = 'HUVEC')
 plot_volcano(mks = mks.fibro,celltype = 'fibroblast')
@@ -427,11 +447,114 @@ sankey_plot <- create_sankey_plot(data = obj.srt@meta.data, column_names, title 
 print(sankey_plot)
 
 ## GSEA dotplot
+gsea.all = read.csv('../data/mks/re_analysis/GESA.HALLMARK.all.csv', row.names = 1)
+
 gsea.all[1:3,]
-custom_palette <- colorRampPalette(c("#2874A6", "white", "#D35400"))(1000)
+custom_palette <- colorRampPalette(c("#2874A6", "white", "#FC4119"))(1000)
 
 gsea.all %>%
   ggplot(aes(x = ID, y = celltype)) +
   geom_point(aes(size = NES, color = -(p.adjust))) + theme_bw() +
-  RotatedAxis() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
   scale_color_gradientn(colors = custom_palette) 
+
+# corrected 23.08.02
+
+# descending order of NES
+df =gsea.all %>% select(celltype,ID, NES) %>% tidyr::spread(ID, NES)
+colsm = colSums(df[,2:ncol(df)])
+colsm <- colsm[order(-colsm)]
+names(colsm)
+
+# Get the order of the names in colsm
+order_x <- names(colsm)
+
+# Convert ID column to a factor with the desired order
+gsea.all$ID <- factor(gsea.all$ID, levels = order_x)
+
+# Plot the ggplot with the reordered x-axis
+gsea.all %>%
+  ggplot(aes(x = ID, y = celltype)) +
+  geom_point(aes(size = -(p.adjust), color = NES)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_color_gradientn(colors = custom_palette) +
+  labs(color = "NES", size = "FDR")
+
+#################################################
+## generate the combined DGE file
+library(dplyr)
+
+# Define the cell types in the desired order
+cell_types <- c('CORL47', 'Fibroblast', 'HUVEC', 'Monocyte', 'NK')
+
+# Get the list of files matching the pattern 'deg.csv'
+fs <- list.files(path = '.', pattern = 'deg.csv', full.names = TRUE)
+
+# Function to read and preprocess each CSV file
+read_and_preprocess_csv <- function(file_path, cell_type) {
+  df <- read.csv(file_path)  # Read the CSV file
+  df$cell_type <- cell_type  # Add the 'cell_type' column and fill with the specified value
+  return(df)
+}
+
+# Read and preprocess all CSV files, and combine them using rbind
+combined_data <- do.call(rbind, mapply(read_and_preprocess_csv, fs, cell_types, SIMPLIFY = FALSE))
+combined_data = combined_data[,-1]
+combined_data$cell_type %>% table()
+combined_data %>% write.csv('DEG.combined.csv')
+
+#######################################
+## VlnPlot 
+# Function to create Violin Plots by compare levels
+plot_vln_by_compare <- function(main_cell_type, seurat_obj, gene_vector) {
+  seurat_obj@meta.data <- seurat_obj@meta.data %>%
+    mutate(compare = ifelse(main_cell_type == main_cell_type & orig.ident == 'MN3', paste0(main_cell_type, ' MN3'),
+                            ifelse(main_cell_type == main_cell_type & orig.ident == 'MN4', paste0(main_cell_type, ' MN4'), 'other')))
+  
+  compare_levels <- c(paste0(main_cell_type, ' MN3'), paste0(main_cell_type, ' MN4'))
+  
+  Idents(seurat_obj) <- 'compare'
+  VlnPlot(seurat_obj, features = gene_vector, idents = compare_levels, stack = TRUE, flip = TRUE) + NoLegend()
+}
+
+# Define the main_cell_type and gene_vector for each cell type
+cell_types <- c('CORL47', 'HUVEC', 'fibroblast', 'NK', 'Monocyte')
+
+# Upregulated genes in MN4
+gene_vectors_up <- list(
+  c("ISG15", "MT2A", "STAT1", "IRF1", "B2M", "GBP1", "PARP14", "IFI6", "TUBA1A", "MLLT11", "IFIT3", "IRF9", "DLX6-AS1", "TCF4", "IFI27"),
+  c("CXCL10", "CXCL11", "CXCL9", "IFI27", "ISG15", "GBP1", "IFIT3", "IFI6", "MX1", "IFI44L", "IFIT2", "BST2", "RNF213", "IFIT1", "WARS"),
+  c("ISG15", "IFI27", "CXCL10", "IFIT3", "IFI6", "GBP1", "WARS", "IFIT2", "BST2", "MX1", "IL32", "PMAIP1", "LAP3", "CXCL11", "IDO1"),
+  c("ISG15", "IFIT2", "IFIT3", "IFI6", "MX1", "IFIT1", "ISG20", "RSAD2", "HERC5", "OASL", "IFI44L", "XAF1", "STAT1", "PMAIP1", "LY6E"),
+  c("ISG15", "IFIT2", "CCL8", "RSAD2", "APOBEC3A", "IFIT3", "IFITM3", "IFI27", "TNFSF10", "IFI6", "CXCL10", "LY6E", "MX1", "ISG20", "IFIT1"))
+
+# Downregulated genes in MN4
+gene_vectors_down <- list(
+  c("MYDGF", "PPIB", "SERP1", "SSR3", "SEC11C", "AL627171.2", "SURF2", "EDF1", "PRDX4", "OSTC", "SSR2", "SIVA1", "SEC61B", "TCEA1", "NOL7"),
+  c("LYVE1", "IGFBP4", "EGR1", "CD34", "CLDN5", "SPRY1", "GCHFR", "CCL14", "SESN3", "FABP5", "PCDH17", "RAMP2", "AHR", "TM4SF18", "MGST2"),
+  c("MGP", "CLU", "COL3A1", "DCN", "AREG", "LUM", "ELN", "A2M", "GPX3", "CEBPD", "FGF7", "ADH1B", "FOS", "C11orf96", "APOE"),
+  c("HIST1H1D", "DUSP2", "KLRB1", "NOP53", "EEF1B2", "ZFP36L2", "EEF1G", "LTB", "MATK", "TPT1", "PNRC1", "EEF1D", "EIF4B", "IKZF1", "RACK1"),
+  c("CYP27A1", "G0S2", "S100A4", "MRC1", "VCAN", "FBP1", "NME2", "APRT", "LYZ", "NACA", "SNHG29", "LTA4H", "EEF1B2", "CD14", "IL1B")
+)
+
+# Combine both lists into one
+# gene_vectors <- c(gene_vectors_up, gene_vectors_down)
+# names(gene_vectors) <- cell_types
+
+# Create and arrange the plots using cowplot
+# up
+# down
+plots <- lapply(1:length(cell_types), function(i) {
+  main_cell_type <- cell_types[i]
+  gene_vector <- gene_vectors_up[[i]]
+  plot_vln_by_compare(main_cell_type, obj.srt, gene_vector)
+})
+plots <- lapply(1:length(cell_types), function(i) {
+  main_cell_type <- cell_types[i]
+  gene_vector <- gene_vectors[[i]]
+  plot_vln_by_compare(main_cell_type, obj.srt, gene_vector)
+})
+
+# combine plots
+cowplot::plot_grid(plotlist = plots, nrow = 1)
