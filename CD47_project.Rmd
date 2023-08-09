@@ -1,0 +1,93 @@
+---
+title: "CD47_project"
+author: "Sung Rye Park"
+date: "2023-08-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+
+## R Markdown
+
+This is an R Markdown document. 
+
+```{r}
+# load required packages
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+
+```
+
+## Import data
+```{r, echo=T}
+## import data
+dir='~/Desktop/DF/MGH_Salvia/'
+obj.srt = readRDS(paste0(dir,'rds/MGH.Salvia.2wk.ITK.CTL.CD47.subset.5642cell.23.04.05.rds'))
+```
+## Clusters in UMAP
+```{r}
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.1', label = T, label.box = T)
+```
+
+## Distribution of clusters in each group
+
+```{r, fig.height=3, fig.width=15}
+obj.srt@meta.data %>% select(Group, RNA_snn_res.0.1) %>% ggplot(aes(Group,  fill=forcats::fct_rev(RNA_snn_res.0.1))) + geom_bar(position = 'fill', color='black') +coord_flip() + theme(legend.title = element_blank()) +ylab('')
+```
+
+
+## Heatmap of annotation genes 
+```{r, fig.align='center', fig.height=6, fig.width=10}
+# version2
+gs=c('Cd68','Ccr2','F10', 'Lilrb4a','Ly6c2','Ccl6','Ccl9','Fcgr3','Fcgr2b',
+     'Cd14','Hmox1','Apoe','Csf1r','Fcgr1','Mrc1','Cd163','C1qc','C1qa','C1qb',
+     'Egr1','Itgax','Siglecg', 'Clec4a4','Xcr1','Cd83',
+     'Cxcr2','Csf3r','Camp','Ngp','Cd177','Cd63',
+     'Ccl5','Nkg7','Gzma') 
+print(gs)
+
+
+## function of cell annotation heatmap
+## add column gaps
+tmp=obj.srt@meta.data$RNA_snn_res.0.1 %>% table() %>% data.frame()
+tmp$sum =0
+for(i in 1:nrow(tmp)){
+  if(i ==1){
+    tmp[i,]$sum= tmp[i,2]
+  }else{
+    tmp[i,]$sum=sum(tmp[i-1,]$sum,tmp[i,2])
+  }
+}
+col.gap =tmp$sum[1:length(tmp$sum)-1]
+pheat.func=function(gs){
+  gs.df = data.frame(gs)
+  gs.df$type = ''
+  gs.df[1:9,]$type ='macrophage'
+  gs.df[10:19,]$type ='TAM'
+  gs.df[20:25,]$type ='DC'
+  gs.df[26:31,]$type ='Neutrophil'
+  gs.df[32:34,]$type ='NK'
+  gs.df$type = factor(gs.df$type, levels = c('macrophage','TAM','DC','Neutrophil','NK'))
+  gs.df=gs.df[,c(2,1)]
+  gs.df =gs.df[,'type'] %>% data.frame()
+  rownames(gs.df)= gs
+  ## use scale.data for heatmap
+  exp= obj.srt@assays$RNA@scale.data[gs,] %>% data.frame(check.names = F)
+  df.anno= obj.srt@meta.data[,c('RNA_snn_res.0.1','Group')]
+  df.anno$RNA_snn_res.0.1 = factor(df.anno$RNA_snn_res.0.1)
+  df.anno = df.anno %>% arrange(RNA_snn_res.0.1, Group)
+  pheatmap::pheatmap(exp[,rownames(df.anno)], cluster_cols = F, cluster_rows = F,
+                     annotation_col = df.anno, 
+                     annotation_row = gs.df, gaps_row = c(9,19,25,31),
+                     gaps_col = col.gap,
+                     show_rownames = T, show_colnames = F,
+                     col = c(colorRampPalette(colors = c("#2874A6","white"))(20), 
+                             colorRampPalette(colors = c("white","red"))(90)))
+}
+pheat.func(gs)
+```
+
+
