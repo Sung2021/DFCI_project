@@ -6,10 +6,7 @@ output: html_document
 knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
 ```
 ## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+This is an R Markdown document.
 
 ```{r libraries, echo=FALSE}
 # Load required libraries
@@ -226,4 +223,89 @@ DOWN regulated genes in MN4 compared to MN3
 ```{r, echo=TRUE, fig.height= 20, fig.width= 30}
 # combine plots
 cowplot::plot_grid(plotlist = plots2, nrow = 1)
+```
+
+
+
+```{r, echo=FALSE}
+## up/dn regulated genes in each cell type in MN4
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/data/mks/re_analysis/MN3.MN4/'
+DEG.combined= read.csv(paste0(dir, 'DEG.combined.csv'), row.names = 1)
+celltypes= levels(factor(DEG.combined$cell_type))
+
+DE_condition= 'UP'
+for(i in 1:length(celltypes)){assign(paste0(celltypes[i], '_vector'), DEG.combined %>% filter(cell_type== celltypes[i], DE== DE_condition) %>% pull(gene))}
+
+ven_list = list(CORL47 = CORL47_vector,
+                Fibroblast = Fibroblast_vector,
+                HUVEC = HUVEC_vector,
+                Monocyte = Monocyte_vector,
+                NK = NK_vector)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+# UP regulated shared genes
+```{r}
+plot(ven_out)
+plot(ven_out, type = "upset")
+```
+
+```{r, echo=FALSE}
+## generate the shared gene list matrix
+df = ven_out@result$Subset %>% table() %>% data.frame()
+ven.info = df$. %>% factor() %>% levels() ## types of sharing among groups
+df$gene =''
+for(i in 1:nrow(df)){
+  df[i, ]$gene = ven_out@result[ven_out@result$Subset == ven.info[i], ] %>% 
+    dplyr::select(Detail) %>% 
+    pull() %>% paste0(collapse = ',')
+}
+```
+
+```{r}
+DT::datatable(df)
+```
+
+
+```{r, echo=FALSE}
+## up/dn regulated genes in each cell type in MN4
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/data/mks/re_analysis/MN3.MN4/'
+DEG.combined= read.csv(paste0(dir, 'DEG.combined.csv'), row.names = 1)
+celltypes= levels(factor(DEG.combined$cell_type))
+
+DE_condition= 'DN'
+for(i in 1:length(celltypes)){assign(paste0(celltypes[i], '_vector'), DEG.combined %>% filter(cell_type== celltypes[i], DE== DE_condition) %>% pull(gene))}
+
+ven_list = list(CORL47 = CORL47_vector,
+                Fibroblast = Fibroblast_vector,
+                HUVEC = HUVEC_vector,
+                Monocyte = Monocyte_vector,
+                NK = NK_vector)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+# UP regulated shared genes
+```{r}
+plot(ven_out)
+plot(ven_out, type = "upset")
+```
+
+```{r, echo=FALSE}
+## generate the shared gene list matrix
+df = ven_out@result$Subset %>% table() %>% data.frame()
+ven.info = df$. %>% factor() %>% levels() ## types of sharing among groups
+df$gene =''
+for(i in 1:nrow(df)){
+  df[i, ]$gene = ven_out@result[ven_out@result$Subset == ven.info[i], ] %>% 
+    dplyr::select(Detail) %>% 
+    pull() %>% paste0(collapse = ',')
+}
+```
+
+```{r}
+DT::datatable(df)
 ```
