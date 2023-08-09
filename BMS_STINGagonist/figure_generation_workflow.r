@@ -584,3 +584,55 @@ plots <- lapply(1:length(cell_types), function(i) {
 cowplot::plot_grid(plotlist = plots, nrow = 1)
 
 obj.srt@meta.data[1:3,]
+
+## up/dn regulated genes in each cell type in MN4
+DEG.combined= read.csv('../data/mks/re_analysis/DEG.combined.csv', row.names = 1)
+celltypes= levels(factor(DEG.combined$cell_type))
+
+## select DE condition
+DE_condition='UP'
+filename1 = '../data/mks/re_analysis/UP.DEG.ven_out.csv'
+filename2 = '../data/mks/re_analysis/DEG.UP.ven_out_info.csv'
+
+DE_condition='DN'
+filename1 = '../data/mks/re_analysis/DN.DEG.ven_out.csv'
+filename2 = '../data/mks/re_analysis/DEG.DN.ven_out_info.csv'
+
+CORL47_vector <- DEG.combined %>%
+  filter(cell_type == "CORL47", DE == DE_condition) %>% pull(gene)
+Fibroblast_vector <- DEG.combined %>%
+  filter(cell_type == "Fibroblast", DE == DE_condition) %>% pull(gene)
+HUVEC_vector <- DEG.combined %>%
+  filter(cell_type == "HUVEC", DE == DE_condition) %>% pull(gene)
+Monocyte_vector <- DEG.combined %>%
+  filter(cell_type == "Monocyte", DE == DE_condition) %>% pull(gene)
+NK_vector <- DEG.combined %>%
+  filter(cell_type == "NK", DE == DE_condition) %>% pull(gene)
+
+ven_list = list(CORL47 = CORL47_vector,
+                Fibroblast = Fibroblast_vector,
+                HUVEC = HUVEC_vector,
+                Monocyte = Monocyte_vector,
+                NK = NK_vector)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+ven_out@result %>% write.csv(filename1)
+
+## generate the shared gene list matrix
+df = ven_out@result$Subset %>% table() %>% data.frame()
+ven.info = df$. %>% factor() %>% levels() ## types of sharing among groups
+df$gene =''
+for(i in 1:nrow(df)){
+  df[i, ]$gene = ven_up@result[ven_up@result$Subset == ven.info[i], ] %>% 
+    dplyr::select(Detail) %>% 
+    pull() %>% paste0(collapse = ',')
+}
+## save data matrix into csv
+df %>% write.csv(filename2)
+
+dev.off()
+plot(ven_out)
+dev.off()
+plot(ven_out, type = "upset")
+
