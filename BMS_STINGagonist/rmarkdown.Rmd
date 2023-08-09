@@ -1,0 +1,229 @@
+---
+title: "NK project: MN3 vs MN4"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r libraries, echo=FALSE}
+# Load required libraries
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+
+```{r rds_data, echo=FALSE}
+setwd('~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/rds/')
+## import data
+obj.srt = readRDS('NK_MN3.MN4.23.07.27.rds')
+
+```
+## Visualize UMAP results
+
+Visualize samples in UMAP
+
+Visualize clusters of res 0.2 in UMAP
+
+Visualize cell_type in UMAP
+
+Visualize main cell_type in UMAP
+
+```{r visualization}
+DimPlot(obj.srt, group.by = 'orig.ident') + theme(plot.title = element_blank())
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2',) + theme(plot.title = element_blank()) 
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2', label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+DimPlot(obj.srt, group.by = 'cell_type', label = F, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+DimPlot(obj.srt, group.by = 'cell_type', label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+DimPlot(obj.srt, group.by = 'main_cell_type', label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+DimPlot(obj.srt, group.by = 'main_cell_type', label = F, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+
+```
+
+# cell type marker genes (manually chosen)
+```{r genes, echo=F}
+gene_list <- c("GNLY", "GZMB", "XCL2", "NKG7", "PECAM1", "CDH5", "ANGPT2", "LYVE1", "CCL14", "CD93", "MCAM", "LAMA4", "CLEC14A", "COL3A1", "DCN", "COL1A2", "COL1A1", "CD68", "LYZ", "CCL2", "CCL3", "APOBEC3A", "EPCAM", "ASCL1", "BIRC5")
+
+```
+
+```{r , echo=T}
+print(gene_list)
+```
+```{r, echo=F}
+# Reverse the order of 'ident' levels
+obj.srt@meta.data$rev.cluster <- factor(obj.srt@meta.data$RNA_snn_res.0.2, 
+                                        levels = rev(levels(obj.srt@meta.data$RNA_snn_res.0.2)))
+
+```
+
+```{r}
+# Create the violin plot with the reversed order of identities
+VlnPlot(obj.srt, features = gene_list, group.by = "rev.cluster",
+        stack = T, flip = F) + NoLegend()
+```
+
+
+```{r, echo=FALSE}
+dir='~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/data/mks/re_analysis/MN3.MN4/'
+mks.nk= read.csv(paste0(dir,'NK','mn3.4.deg.csv'), row.names = 1)
+mks.huvec=read.csv(paste0(dir,'HUVEC','mn3.4.deg.csv'), row.names = 1)
+mks.fibro=read.csv(paste0(dir,'Fibro','mn3.4.deg.csv'), row.names = 1)
+mks.mono=read.csv(paste0(dir,'Mono','mn3.4.deg.csv'), row.names = 1)
+mks.corl=read.csv(paste0(dir,'CORL','mn3.4.deg.csv'), row.names = 1)
+
+plot_volcano_text=function(mks=mks, celltype='NK'){
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  fc=1.2
+  p=mks %>% 
+    ggplot(aes(avg_log2FC, -log10(p_val_adj), color=DE)) + 
+    geom_point(size=1, alpha=0.5) + 
+    scale_color_manual(values = c('red','blue','grey')) +
+    theme_classic() +
+    geom_vline(xintercept = c(-log2(fc),log2(fc)), color='grey') +
+    geom_hline(yintercept = -log10(0.05),color='grey') +
+    guides(colour = guide_legend(override.aes = list(size=5))) +
+    ggtitle(paste0(celltype,' population')) +
+    # Use geom_text with hjust argument to adjust label position
+    geom_text(aes(label = labels), size = 2.5, show.legend = FALSE, hjust = 0, nudge_x = 0.01) +
+    ggeasy::easy_center_title() ## to center title
+  
+  print(p)
+}
+```
+
+# Volcano plot of Differentially Expressed Genes of MN3 vs MN4
+```{r, echo=T}
+plot_volcano_text(mks = mks.nk,celltype = 'NK')
+plot_volcano_text(mks = mks.huvec,celltype = 'HUVEC')
+plot_volcano_text(mks = mks.fibro,celltype = 'fibroblast')
+plot_volcano_text(mks = mks.mono,celltype = 'Monocyte')
+plot_volcano_text(mks = mks.corl,celltype = 'CORL47')
+
+```
+
+
+UP regulated genes in NK from MN4 
+```{r, echo=F}
+mks.nk %>% filter(DE == 'UP') %>% select(gene) %>% pull()
+```
+
+DN regulated genes in NK from MN4 
+```{r, echo=F}
+mks.nk %>% filter(DE == 'DN') %>% select(gene) %>% pull()
+```
+
+UP regulated genes in Monocyte from MN4 
+```{r, echo=F}
+mks.mono %>% filter(DE == 'UP') %>% select(gene) %>% pull()
+```
+
+DN regulated genes in Monocyte from MN4 
+```{r, echo=F}
+mks.mono %>% filter(DE == 'DN') %>% select(gene) %>% pull()
+```
+
+UP regulated genes in HUVEC from MN4 
+```{r, echo=F}
+mks.huvec %>% filter(DE == 'UP') %>% select(gene) %>% pull()
+```
+
+DN regulated genes in HUVEC from MN4 
+```{r, echo=F}
+mks.huvec %>% filter(DE == 'DN') %>% select(gene) %>% pull()
+```
+
+UP regulated genes in Fibroblast from MN4 
+```{r, echo=F}
+mks.fibro %>% filter(DE == 'UP') %>% select(gene) %>% pull()
+```
+
+DN regulated genes in Fibroblast from MN4 
+```{r, echo=F}
+mks.fibro %>% filter(DE == 'DN') %>% select(gene) %>% pull()
+```
+
+UP regulated genes in CORL47 from MN4 
+```{r, echo=F}
+mks.corl %>% filter(DE == 'UP') %>% select(gene) %>% pull()
+```
+
+DN regulated genes in CORL47 from MN4 
+```{r, echo=F}
+mks.corl %>% filter(DE == 'DN') %>% select(gene) %>% pull()
+```
+
+# Violin plot of UP/DN regulated genes 
+```{r, echo=F}
+# Function to create Violin Plots by compare levels
+plot_vln_by_compare <- function(main_cell_type, seurat_obj, gene_vector) {
+  seurat_obj@meta.data <- seurat_obj@meta.data %>%
+    mutate(compare = ifelse(main_cell_type == main_cell_type & orig.ident == 'MN3', paste0(main_cell_type, ' MN3'),
+                            ifelse(main_cell_type == main_cell_type & orig.ident == 'MN4', paste0(main_cell_type, ' MN4'), 'other')))
+  
+  compare_levels <- c(paste0(main_cell_type, ' MN3'), paste0(main_cell_type, ' MN4'))
+  
+  Idents(seurat_obj) <- 'compare'
+  VlnPlot(seurat_obj, features = gene_vector, idents = compare_levels, stack = TRUE, flip = TRUE) + NoLegend()
+}
+
+# Define the main_cell_type and gene_vector for each cell type
+cell_types <- c('CORL47', 'HUVEC', 'fibroblast', 'NK', 'Monocyte')
+
+# Upregulated genes in MN4
+gene_vectors_up <- list(
+  c("ISG15", "MT2A", "STAT1", "IRF1", "B2M", "GBP1", "PARP14", "IFI6", "TUBA1A", "MLLT11", "IFIT3", "IRF9", "DLX6-AS1", "TCF4", "IFI27"),
+  c("CXCL10", "CXCL11", "CXCL9", "IFI27", "ISG15", "GBP1", "IFIT3", "IFI6", "MX1", "IFI44L", "IFIT2", "BST2", "RNF213", "IFIT1", "WARS"),
+  c("ISG15", "IFI27", "CXCL10", "IFIT3", "IFI6", "GBP1", "WARS", "IFIT2", "BST2", "MX1", "IL32", "PMAIP1", "LAP3", "CXCL11", "IDO1"),
+  c("ISG15", "IFIT2", "IFIT3", "IFI6", "MX1", "IFIT1", "ISG20", "RSAD2", "HERC5", "OASL", "IFI44L", "XAF1", "STAT1", "PMAIP1", "LY6E"),
+  c("ISG15", "IFIT2", "CCL8", "RSAD2", "APOBEC3A", "IFIT3", "IFITM3", "IFI27", "TNFSF10", "IFI6", "CXCL10", "LY6E", "MX1", "ISG20", "IFIT1"))
+
+# Downregulated genes in MN4
+gene_vectors_down <- list(
+  c("MYDGF", "PPIB", "SERP1", "SSR3", "SEC11C", "AL627171.2", "SURF2", "EDF1", "PRDX4", "OSTC", "SSR2", "SIVA1", "SEC61B", "TCEA1", "NOL7"),
+  c("LYVE1", "IGFBP4", "EGR1", "CD34", "CLDN5", "SPRY1", "GCHFR", "CCL14", "SESN3", "FABP5", "PCDH17", "RAMP2", "AHR", "TM4SF18", "MGST2"),
+  c("MGP", "CLU", "COL3A1", "DCN", "AREG", "LUM", "ELN", "A2M", "GPX3", "CEBPD", "FGF7", "ADH1B", "FOS", "C11orf96", "APOE"),
+  c("HIST1H1D", "DUSP2", "KLRB1", "NOP53", "EEF1B2", "ZFP36L2", "EEF1G", "LTB", "MATK", "TPT1", "PNRC1", "EEF1D", "EIF4B", "IKZF1", "RACK1"),
+  c("CYP27A1", "G0S2", "S100A4", "MRC1", "VCAN", "FBP1", "NME2", "APRT", "LYZ", "NACA", "SNHG29", "LTA4H", "EEF1B2", "CD14", "IL1B")
+)
+
+```
+
+
+```{r, echo=F}
+# Create and arrange the plots using cowplot
+# up
+plots1 <- lapply(1:length(cell_types), function(i) {
+  main_cell_type <- cell_types[i]
+  gene_vector <- gene_vectors_up[[i]]
+  plot_vln_by_compare(main_cell_type, obj.srt, gene_vector)
+})
+
+# Create and arrange the plots using cowplot
+# down
+plots2 <- lapply(1:length(cell_types), function(i) {
+  main_cell_type <- cell_types[i]
+  gene_vector <- gene_vectors_down[[i]]
+  plot_vln_by_compare(main_cell_type, obj.srt, gene_vector)
+})
+
+```
+
+UP regulated genes in MN4 compared to MN3
+```{r, echo=TRUE, fig.height= 20, fig.width= 30}
+# combine plots
+cowplot::plot_grid(plotlist = plots1, nrow = 1)
+```
+
+DOWN regulated genes in MN4 compared to MN3
+```{r, echo=TRUE, fig.height= 20, fig.width= 30}
+# combine plots
+cowplot::plot_grid(plotlist = plots2, nrow = 1)
+```
