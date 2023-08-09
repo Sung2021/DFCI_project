@@ -288,7 +288,7 @@ ven_list = list(CORL47 = CORL47_vector,
 ven_out <- VennDetail::venndetail(ven_list)
 ```
 
-# UP regulated shared genes
+# DOWN regulated shared genes
 ```{r}
 plot(ven_out)
 plot(ven_out, type = "upset")
