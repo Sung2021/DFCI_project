@@ -74,4 +74,35 @@ write_count_matrix_csv(obj.srt=obj.srt1, output_directory, file_prefix1)
 file_prefix2 <- 'Takeda.NK.30298'
 write_count_matrix_csv(obj.srt=obj.srt2, output_directory, file_prefix2)
 
+####### add scrublet info
+update_seurat_object <- function(dir, patient, obj.srt) {
+  df <- read.csv(paste0(dir, 'Takeda.NK.', patient, '.scr.csv'), row.names = 1)
+  rownames(df) <- gsub(pattern = '\\.', replacement = '-', rownames(df))
+  
+  obj.srt[['doublet_score']] <- df$doublet_score
+  obj.srt[['predicted_doublet']] <- df$predicted_doublet
+  
+  return(obj.srt)
+}
+
+# Usage
+dir <- '~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/raw_data/'
+obj.srt1 <- update_seurat_object(dir, patient='30293', obj.srt = obj.srt1)
+obj.srt2 <- update_seurat_object(dir, patient='30298', obj.srt = obj.srt2)
+
+dir <- '~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/rds/'
+obj.srt1 %>% saveRDS(paste0(dir,'Takeda.NK.30293.23.08.17.rds'))
+obj.srt2 %>% saveRDS(paste0(dir,'Takeda.NK.30298.23.08.17.rds'))
+
+## Merge data
+## in request form: analysis of MT30269 and MT30271
+dir <- '~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/rds/'
+obj.srt1= readRDS(paste0(dir,'Takeda.NK.30293.23.08.17.rds'))
+obj.srt2= readRDS(paste0(dir,'Takeda.NK.30298.23.08.17.rds'))
+## merge 
+obj.srt = merge(obj.srt1, y = c(obj.srt2), add.cell.ids = c('TN30293','TN30298'))
+## save merged object
+dir <- '~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/rds/'
+obj.srt %>% saveRDS(paste0(dir,'Takeda.NK.30293.30298.23.08.17.rds'))
+obj.srt@meta.data %>% write.csv(paste0(dir,'Takeda.NK.30293.30298.meta','.csv'))
 
