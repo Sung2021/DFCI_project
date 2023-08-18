@@ -1,6 +1,6 @@
 ---
-title: "NK project: MN1 vs MN2"
-output: html_document
+## title: "NK project: MN1 vs MN2"
+## output: html_document
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F, fig.height = 5, fig.width = 6)
