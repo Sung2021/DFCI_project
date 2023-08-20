@@ -1,0 +1,93 @@
+---
+title: "Takeda TAK676 All"
+author: "Sung Rye Park"
+date: "2023-08-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, fig.align = "center", message=F, warning=F, out.width='80%', fig.asp=.75, fig.cap='Figure')
+```
+
+## TAKEDA project: Combinational treatment of Tak-676 with PD-1 blocker (Pembrolizumab) in Mesothelioma 
+
+This is a document for collection of all raw data.  
+
+#### Rationale. 
+
+TAK-676 is a highly potent modulator of both the innate and adaptive immune system and that it promotes the activation of dendritic cells, natural killer cells, and T cells in preclinical models 
+
+In syngeneic murine tumor models in vivo, TAK-676 induces dose-dependent cytokine responses and increases the activation and proliferation of immune cells within the TME and tumor-associated lymphoid tissue. We also demonstrate that TAK-676 dosing results in significant STING- dependent antitumor activity, including complete regressions and durable memory T-cell immunity. We show that TAK-676 is well tolerated, exhibits dose-proportional pharmacokinetics in plasma, and exhibits higher exposure in tumor. The intravenous administration of TAK-676 provides potential treatment benefit in a broad range of tumor types. Further study of TAK-676 in first-in-human phase I trials is ongoing. 
+
+Significance: TAK-676 is a novel systemic STING agonist demonstrating robust activation of innate and adaptive immune activity resulting in durable antitumor responses within multiple syngeneic tumor models. Clinical investigation of TAK-676 is ongoing. 
+
+---
+```{r, echo=F}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+```
+
+Import all data  
+* doublets were removed already by scrublet  
+
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+obj.srt = readRDS(paste0(dir, 'rds/MT.all.raw.singlets.23.05.16.rds'))
+```
+
+Overall UMI and Mitochondrial content ratio  
+```{r}
+obj.srt@meta.data[,c('nCount_RNA','percent.mt')] %>% summary()
+```
+
+```{r, echo=F}
+obj.srt@meta.data$orig.ident %>% table() %>% data.frame()  %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'number of cells'), rownames = F)
+obj.srt@meta.data$predicted_doublet %>% table() %>% data.frame() %>% DT::datatable(colnames = c('doublet', 'number of cells'), rownames = F)
+```
+
+
+```{r results='asis', echo=F}
+# Create a data frame with the sample information
+sample_info <- data.frame(
+  original_data = c("30212", "30268", "30269", "30271", "30273"),
+  sample = c("MT30212", "MT30268", "MT30269", "MT30271", "MT30273"),
+  condition = c("C,P, T,COM", "C,P, T,COM", "C,P, T,COM", "C,P, T,COM", "C,T,COM"),
+  response = c("R", "R", "NR", "R", "NR"),
+  number_of_cells = c(3411, 95597, 28651, 24425, 11871),
+  COM = c(867, 23687, 4553, 3646, 5173),
+  CTL = c(883, 24149, 7118, 6091, 3929),
+  PEM = c(1005, 20001, 10693, 7853, 0),
+  TAK = c(656, 27760, 6287, 6835, 2769)
+)
+
+# Display the table using kable with center alignment
+kable(sample_info, format = "html", caption = "Sample Information Table") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, latex_options = "hold_position=false")
+```
+```{r,out.width = '80%', echo=F}
+dir <- '~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+knitr::include_graphics(paste0(dir,'data/all/fig/Fig1.all_samples_number_of_cells.png'))
+```
+
+Average UMI by sample  
+```{r, echo=F}
+averaged_data <- obj.srt@meta.data %>%
+  group_by(orig.ident, sample) %>%
+  summarise(average_of_UMI = mean(nCount_RNA)) %>% tidyr::spread(sample, average_of_UMI)
+print(averaged_data)
+
+```
+
+
+Average Mitochondrial content ratio by sample  
+```{r, echo=F}
+averaged_data <- obj.srt@meta.data %>%
+  group_by(orig.ident, sample) %>%
+  summarise(average_of_MT = mean(percent.mt)) %>% tidyr::spread(sample, average_of_MT)
+print(averaged_data)
+
+```

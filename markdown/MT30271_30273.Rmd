@@ -1,0 +1,260 @@
+---
+title: "MT30217 MT30273"
+author: "Sung Rye Park"
+date: "2023-08-10"
+output: 
+  html_document:
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, fig.align = "center", message=F, warning=F)
+```
+
+## R Markdown
+
+This is a document for subset data of MT30217 and MT30273.
+
+The details regarding MT30217 and MT30273 are currently confidential.
+
+
+
+```{r, echo=F}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+#### Import the processed data
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+obj.srt = readRDS(paste0(dir,'rds/MT30271.30273.23.07.31.rds'))
+```
+
+#### pre-processing information
+UMI cutoff : 500~ 20000. 
+
+mitochondrial cutoff : 25. 
+
+other cutoffs : NA. 
+
+doublet removal (scrublet) : Y. 
+
+regression: ribosomal genes. 
+   
+   
+---   
+#### Visualization
+UMAP  
+```{r, fig.align='center', echo=TRUE}
+DimPlot(obj.srt, group.by = 'orig.ident')
+DimPlot(obj.srt, group.by = 'res')
+DimPlot(obj.srt, group.by = 'sample')
+DimPlot(obj.srt, group.by = 'sample', split.by = 'sample', ncol = 2)
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2')
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2', label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+
+#### Display the number of cells in each sample 
+```{r, echo=F}
+obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable()
+obj.srt@meta.data %>% select(orig.ident,sample) %>% table() %>% data.frame() %>% DT::datatable()
+obj.srt@meta.data %>% select(RNA_snn_res.0.2) %>% table() %>% data.frame() %>% DT::datatable()
+obj.srt@meta.data %>% select(RNA_snn_res.0.2, res) %>% table() %>% data.frame() %>% tidyr::spread(res, Freq) %>% DT::datatable()
+obj.srt@meta.data %>% select(RNA_snn_res.0.2, res, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable()
+```
+
+```{r, echo=FALSE}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+all.markers = read.csv(paste0(dir,'data/MT30271.MT30273/mks/res.0.2.all.markers.23.07.31.csv'))
+## top marker genes table 
+mks= all.markers
+df=mks$cluster %>% table() %>% data.frame()
+df[,'top_genes'] =''
+for(i in 1:length(unique(mks$cluster))){
+  if(df[i,]$Freq >= 30){
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% head(30) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }else{
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }
+}
+```
+  
+Top 30 genes table
+```{r}
+DT::datatable(df) 
+```
+
+cell type guess
+
+```{r, echo=F}
+data <- data.frame(
+  Category = c("B", "Macrophage", "DC", "Fibroblast", "Tcell", "NK", "RBC", "Epithelial", "Tumor", "Monocyte"),
+  Genes = c("CD79A, IGHM, CD79B, MS4A1",
+            "CD14, VSIG4, C1QB, C1QA, APOE, SPP1, CD83",
+            "ITGAX, ITGAM, CD1C,  FLT3, HLA-DRA, HLA-DRB1",
+            "COL3A1, COL4A1, COL4A2, S100A16, UGDH",
+            "TCF7, CD3G, CD3E, CD3D, CD4, CD28, BCL11B, CD8A, CD8B, ICOS",
+            "GNLY, KLRD1, KLRB1, KLRC1",
+            "HBB",
+            "KRT18, KRT8, KRT18, KRT19",
+            "CTLA4, HAVCR2, EGFR, KRAS, MYC, CD274",
+            "CD14, CD68, CCR2, CSF1R")
+)
+
+print(data)
+
+```
+
+
+```{r, echo=F}
+genes_vector <- c("CD79A", "IGHM", "CD79B", "MS4A1",
+                  "CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83",
+                  "ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1",
+                  "COL3A1", "COL4A1", "COL4A2", "S100A16", "UGDH",
+                  "TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS",
+                  "GNLY", "KLRD1", "KLRB1", "KLRC1",
+                  "HBB",
+                  "KRT18", "KRT8", "KRT18", "KRT19",
+                  "CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274",
+                  "CD14", "CD68", "CCR2", "CSF1R")
+
+# Reverse the order of 'ident' levels
+obj.srt@meta.data$rev.cluster <- factor(obj.srt@meta.data$RNA_snn_res.0.2, 
+                                        levels = rev(levels(obj.srt@meta.data$RNA_snn_res.0.2)))
+```
+
+  
+```{r, echo=F}
+VlnPlot(obj.srt, features = genes_vector, group.by = "rev.cluster",
+        stack = T, flip = F) + NoLegend()
+```
+
+```{r}
+data <- data.frame(
+  cluster = c(
+    "clustere0", "clustere1", "clustere2", "clustere3", "clustere4",
+    "clustere5", "clustere6", "clustere7", "clustere8", "clustere9",
+    "clustere10", "clustere11", "clustere12", "clustere13", "clustere14",
+    "clustere15", "clustere16"
+  ),
+  type = c(
+    "T cell", "T cell", "Macrophage", "T cell2", "Fibroblast tumor-associated",
+    "Epithelial", "NK", "Macrophage", "Fibroblast", "Fibroblast",
+    "UKN", "T cell-tumor associated", "mono/macrophage", "B cell",
+    "UKN", "mono/macrophage-tumor associated", "mono/macrophage-tumor associated2"
+  )
+)
+print(data)
+```
+
+  
+```{r}
+# add cell type based on cluster resolution 0.2
+type_vector <- c(
+  "T cell1", "T cell2", "Macrophage1", "T cell2", "Fibroblast tumor-associated",
+  "Epithelial", "NK", "Macrophage2", "Fibroblast1", "Fibroblast2",
+  "UKN1", "T cell-tumor associated", "mono/macrophage", "B cell",
+  "UKN2", "mono/macrophage-tumor associated 1", "mono/macrophage-tumor associated 2"
+)
+
+obj.srt@meta.data$cell_type = factor(obj.srt@meta.data$RNA_snn_res.0.2)
+levels(obj.srt@meta.data$cell_type) = type_vector
+```
+
+```{r}
+DimPlot(obj.srt, group.by = 'cell_type')
+DimPlot(obj.srt, group.by = 'cell_type', label = T, label.box = T, label.size = 3) + NoLegend()
+```
+
+```{r}
+# add main cell type based on cluster resolution 0.2
+types <- c(
+  "T cell", "T cell", "macrophage", "T cell", "Fibroblast-tumor-associated",
+  "Epithelial cell", "NK", "macrophage", "fibroblast", "fibroblast",
+  "UKN", "T cell-tumor associated", "mono/macrophage", "B cell",
+  "UKN", "mono/macrophage-tumor associated", "mono/macrophage-tumor associated"
+)
+obj.srt@meta.data$main_cell_type = factor(obj.srt@meta.data$RNA_snn_res.0.2)
+levels(obj.srt@meta.data$main_cell_type) = types
+
+```
+
+```{r}
+DimPlot(obj.srt, group.by = 'main_cell_type')
+DimPlot(obj.srt, group.by = 'main_cell_type', label = T, label.box = T, label.size = 3) + NoLegend()
+```
+
+```{r, fig.height=15, fig.width=7}
+obj.srt@reductions$umap@cell.embeddings %>% data.frame() %>% 
+  ggplot(aes(UMAP_1, UMAP_2, color=obj.srt$main_cell_type)) + geom_point(size=0.2) +
+  facet_wrap(.~obj.srt$sample, ncol = 1) +
+  theme_classic() +guides(colour = guide_legend(override.aes = list(size=5))) +
+  labs(color = "Main Cell Type")
+
+```
+
+```{r, echo=FALSE}
+## sankey plot 
+## sankey plot 
+library(ggsankey)
+library(ggplot2)
+library(dplyr)
+
+data =obj.srt@meta.data[, c('orig.ident','RNA_snn_res.0.2','main_cell_type')]
+
+# Function to create a Sankey plot
+create_sankey_plot <- function(data, column_names, title, show_labels = FALSE){
+  df <- data %>%
+    make_long(!!column_names[1], !!column_names[2], !!column_names[3])
+  
+  dagg <- df %>%
+    group_by(node) %>%
+    tally()
+  
+  df2 <- merge(df, dagg, by.x = 'node', by.y = 'node', all.x = TRUE)
+  
+  pl <- ggplot(df2, aes(x = x,
+                        next_x = next_x,
+                        node = node,
+                        next_node = next_node,
+                        fill = factor(node),
+                        label = paste0(node," n=", n))
+  )
+  
+  pl <- pl + geom_sankey(flow.alpha = 0.5, color = "gray40", show.legend = show_labels)
+  if (show_labels) {
+    pl <- pl + geom_sankey_label(size = 3, color = "white", fill = "gray40", hjust = 1)  # Change hjust value to 1 (right-aligned)
+  }
+  
+  pl <- pl + theme_bw()
+  pl <- pl + theme(legend.position = "none")
+  pl <- pl + theme(axis.title = element_blank(),
+                   axis.text.y = element_blank(),
+                   axis.ticks = element_blank(),
+                   panel.grid = element_blank())
+  pl <- pl + scale_fill_viridis_d(option = "inferno")
+  pl <- pl + labs(title = "Sankey diagram")
+  pl <- pl + labs(subtitle = "cluster distribution")
+  
+  pl <- pl + labs(fill = 'Nodes')
+  
+  return(pl)
+}
+
+# Assuming obj.srt@meta.data is your data and you want to use specific columns for the Sankey plot
+column_names <- c('orig.ident', 'RNA_snn_res.0.2','main_cell_type')
+
+# Create the Sankey plot using the specified columns
+sankey_plot <- create_sankey_plot(data = obj.srt@meta.data, column_names, 
+                                  title = "MT30271_MT30273", show_labels = TRUE)
+```
+
+Sankey plot
+```{r,fig.height=6, fig.width=10}
+# Display the plot
+print(sankey_plot)
+```

@@ -1,0 +1,226 @@
+---
+title: "Takeda NK project: QC step for the case of 30293 and 30298 "
+author: "Sung Rye Park"
+date: "2023-08-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F, fig.height = 5, fig.width = 10)
+```
+## Not public data
+
+This analysis includes data that is not public yet. 
+
+```{r}
+## load required packages
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+
+## directory
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/rds/'
+```
+
+Import data. 
+Preprocessed rds file is used to display the quality of data
+
+```{r}
+obj.srt = readRDS(paste0(dir,'Takeda.NK.30293.30298.23.08.17.rds'))
+obj.srt
+```
+
+* doublets were removed already by scrublet.  
+  
+
+```{r}
+obj.srt@meta.data$sample = factor(obj.srt@meta.data$sample, levels = c('CTL','NKC','TAK','COM'))
+obj.srt@meta.data$orig.ident %>% table() %>% data.frame()  %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'number of cells'), rownames = F)
+obj.srt@meta.data$predicted_doublet %>% table() %>% data.frame() %>% DT::datatable(colnames = c('doublet', 'number of cells'), rownames = F)
+```
+
+
+### Filtering scRNA-seq data based on UMI and mitochondrial content
+
+Filtering single-cell RNA sequencing (scRNA-seq) data based on proper Unique Molecular Identifiers (UMI) counts and mitochondrial contents is a crucial preprocessing step. It helps ensure the quality and reliability of the data before downstream analysis.  
+
+* UMI Filtering: UMIs are used to quantify the number of unique RNA molecules in a sample, helping to correct for amplification biases and PCR duplicates. Filtering cells based on low UMI counts is essential to remove potential noise and improve the accuracy of gene expression measurements. Cells with very few UMIs may indicate technical issues or low-quality data.  
+
+* Mitochondrial Filtering: Mitochondrial genes are crucial for cell energy production, and their high expression in scRNA-seq data often indicates cell stress or poor quality. Filtering cells based on high mitochondrial gene expression helps remove cells undergoing apoptosis, necrosis, or other stress responses. Cells with high mitochondrial content can skew downstream analysis results and impact the identification of meaningful biological variations.  
+  
+  
+Whole data information  
+```{r}
+obj.srt@meta.data[,c('nCount_RNA','percent.mt')] %>% summary()
+```
+  
+P30293 information
+```{r}
+obj.srt@meta.data[obj.srt@meta.data$orig.ident == '30293',c('nCount_RNA','percent.mt')] %>% summary()
+```
+  
+P30298 information
+```{r}
+obj.srt@meta.data[obj.srt@meta.data$orig.ident == '30298',c('nCount_RNA','percent.mt')] %>% summary()
+```
+   
+   
+### Scatter plot of UMI and Mitochondrial content ratio
+  
+  
+```{r, fig.align='center'}
+## Visualize data
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) + geom_point(size=0.1, alpha=0.6)
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) + geom_point(size=0.1, alpha=0.6) +facet_grid(.~orig.ident)
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) + geom_point(size=0.1, alpha=0.6) +facet_grid(.~orig.ident) +geom_vline(xintercept = c(200,500,1000,20000,30000), color='red') +
+  geom_hline(yintercept = c(10,15,25), color='blue')
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) + geom_point(size=0.1, alpha=0.6) +facet_grid(.~orig.ident) +geom_vline(xintercept = c(200,500,1000,20000,30000,50000), color='red') +
+  geom_hline(yintercept = c(10,15,25), color='blue') +scale_x_sqrt()
+
+```
+   
+    
+By filtering out cells with low UMI counts and high mitochondrial contents, you enhance the reliability of your dataset and ensure that only high-quality cells with valid gene expression profiles are included in downstream analyses like clustering, differential expression, and trajectory analysis. 
+  
+  
+
+## Number of cells depending on sets of selected cutoffs
+1. Mitochondrial content %
+2. UMI upper cutoff
+3. UMI bottom cutoff.   
+   
+---
+
+```{r}
+create_side_by_side_bar_plot <- function(percent_mt, nCount_RNA_upper, nCount_RNA_bottom) {
+  plot_data <- obj.srt@meta.data %>% 
+    filter(percent.mt <= percent_mt & nCount_RNA >= nCount_RNA_bottom & nCount_RNA <= nCount_RNA_upper) %>% 
+    select(orig.ident, sample) %>% 
+    group_by(orig.ident, sample) %>% 
+    summarize(count = n())
+  
+  ggplot(plot_data, aes(x = orig.ident, y = count, fill = sample, group = sample)) +
+    geom_bar(stat = "identity", width = 0.4, position = position_dodge(width = 0.5)) +
+    geom_text(aes(label = count), position = position_dodge(width = 0.5), vjust = -0.5) +
+    labs(title = "Distribution of cells",
+         x = "orig.ident",
+         y = "Count") +
+    theme_minimal()
+}
+```
+
+
+1. percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 50000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 50000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 50000, 
+                             nCount_RNA_bottom = 200)
+
+```
+
+2. percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 30000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 30000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 30000, 
+                             nCount_RNA_bottom = 200)
+
+```
+
+3. percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 20000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 200 & nCount_RNA <= 20000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 20000, 
+                             nCount_RNA_bottom = 200)
+
+```
+
+4. percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 50000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 50000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 50000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+5. percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 30000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 30000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 30000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+6. percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 20000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 15 & nCount_RNA >= 500 & nCount_RNA <= 20000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 15, 
+                             nCount_RNA_upper = 20000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+7. percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 50000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 50000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 25, 
+                             nCount_RNA_upper = 50000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+8. percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 30000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 30000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 25, 
+                             nCount_RNA_upper = 30000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+9. percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 20000
+```{r}
+obj.srt@meta.data %>% filter(percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 20000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 25, 
+                             nCount_RNA_upper = 20000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+9. percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 20000
+```{r, results='asis'}
+obj.srt@meta.data %>% filter(percent.mt <= 25 & nCount_RNA >= 500 & nCount_RNA <= 20000) %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% DT::datatable(class = 'cell-border stripe', colnames = c('sample', 'treatment','number of cells'), rownames = F)
+# plot
+create_side_by_side_bar_plot(percent_mt = 25, 
+                             nCount_RNA_upper = 20000, 
+                             nCount_RNA_bottom = 500)
+
+```
+
+
+## At this point, we need to decide the cutoffs for 
+1. Mitochondrial content %
+2. UMI upper cutoff
+3. UMI bottom cutoff
+  
+  
+  
+  
+
+
+

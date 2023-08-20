@@ -1,0 +1,90 @@
+---
+title: "MT30217 MT30273"
+author: "Sung Rye Park"
+date: "2023-08-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, fig.align = "center", message=F, warning=F)
+```
+
+## R Markdown
+
+This is an R Markdown document for subset data of MT30217 and MT30273.
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+#### import data to merge
+#### 30271	R	C,P, T,COM
+#### 30273	NR	C,T,COM
+```{r}
+# dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+# obj1= readRDS(paste0(dir,'rds/MT30271.raw.23.05.16.rds'))
+# obj1 = subset(obj1, sample %in% c('CTL','TAK','COM'))
+# obj2= readRDS(paste0(dir,'rds/MT30273.raw.23.05.16.rds'))
+# 
+# ## merge 
+# obj.srt = merge(obj1, y = c(obj2), add.cell.ids = c('MT30271','MT30273'))
+# obj.srt@meta.data[,c('orig.ident','sample')] %>% table() 
+# obj.srt %>% saveRDS(paste0(dir,'rds/MT30271.30273.raw.23.07.31.rds'))
+```
+
+#### import raw data to subset
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+obj.srt = readRDS(paste0(dir,'rds/MT30271.30273.raw.23.07.31.rds'))
+
+## Filtering: doublet removed and filtered: UMI (500~20000) & MT% <= 25
+  obj.srt <- subset(obj.srt, predicted_doublet == 'False' & nCount_RNA >= 500 & nCount_RNA < 20000 & percent.mt <= 25)
+  ## 23672 cells
+```
+
+### preprocess data
+```{r, echo=TRUE}
+preprocess_and_analyze_data <- function(obj) {
+  ## Convert sample column to a factor
+  obj@meta.data$sample <- factor(obj@meta.data$sample, levels = c('CTL', 'TAK', 'COM'))
+  
+  ## Check ribosomal gene ratio and add ribosomal gene percentage
+  ribosomal_genes <- rownames(obj)[grepl('^RP', rownames(obj))]
+  obj[["percent.ribo"]] <- PercentageFeatureSet(obj, pattern = "^RP")
+  
+  # ## Generate immunoglobulin information and add immunoglobulin gene percentage
+  # igs <- rownames(obj)[grepl('^IG', rownames(obj))]
+  # no_igs <- c(rownames(obj)[grepl('^IGF', rownames(obj))], 'IGLON5')
+  # igs <- igs[!(igs %in% no_igs)]
+  # obj[["percent.igg"]] <- PercentageFeatureSet(obj, features = igs)
+  
+  ## Default normalization
+  obj <- NormalizeData(obj)
+  obj <- FindVariableFeatures(obj, selection.method = 'vst', nfeatures = 3000)
+  all.genes <- rownames(obj)
+  
+  ## Define variables in metadata to regress
+  vars_to_regress <- c('percent.ribo')
+  
+  ## Regress out the uninteresting sources of variation in the data
+  obj <- ScaleData(object = obj, vars.to.regress = vars_to_regress, features = all.genes)
+  
+  ## Run PCA
+  obj <- RunPCA(obj, features = VariableFeatures(object = obj), npcs = 30)
+  
+  ## Find neighbors and clusters
+  obj <- FindNeighbors(obj, dims = 1:20) ## 20
+  obj <- FindClusters(obj, resolution = c(0.2, 0.4, 0.8, 1))
+  
+  ## Run UMAP
+  obj <- RunUMAP(obj, dims = 1:20)
+  
+  return(obj)
+}
+
+## Call the function with your 'obj.srt' object
+obj.srt <- preprocess_and_analyze_data(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,'rds/MT30271.30273.23.07.31.rds'))
+```
