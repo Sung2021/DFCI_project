@@ -1,0 +1,390 @@
+---
+title: "Takeda NK project"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::readthedown: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+<style> 
+#TOC { 
+  top: 1%; 
+  opacity: 0.5; 
+} 
+#TOC:hover { 
+  opacity: 1; 
+} 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+**R Markdown**
+
+This is a document for subset data of TN30293 and TN30298.
+
+The details regarding dataset are currently confidential.
+
+<br>
+<hr>
+<br>
+
+# Import preprocessed data
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/'
+obj.srt = readRDS(paste0(dir,'rds/Takeda.NK.30293.30298.subset.23.08.21.rds'))
+```
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 50000. 
+
+mitochondrial cutoff : 15. 
+
+other cutoffs : NA. 
+
+doublet removal (scrublet) : Y. 
+
+regression: ribosomal genes. 
+
+
+---
+
+# UMAP 
+
+## UMAP by conditions
+
+
+### sample
+```{r, fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'orig.ident')
+```
+
+### Treatment
+```{r, fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'sample')
+```
+
+```{r, fig.width=12, fig.height=4}
+DimPlot(obj.srt, group.by = 'sample', split.by = 'sample', ncol = 4)
+```
+
+
+### Clusters with the resolution of 0.2
+```{r,fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2')
+```
+
+```{r,fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2', label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+
+## The number of cells in each sample 
+```{r}
+obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample')
+obj.srt@meta.data %>% select(orig.ident,sample) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample and treatment')
+obj.srt@meta.data %>% select(RNA_snn_res.0.2) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters')
+obj.srt@meta.data %>% select(RNA_snn_res.0.2, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment')
+obj.srt@meta.data %>% select(RNA_snn_res.0.2, orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment')
+```
+
+
+--- 
+# Annotation of cluster to cell type 
+```{r, echo=FALSE}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/'
+all.markers = read.csv(paste0(dir,'data/mks/res.0.2.all.markers.23.08.21.csv'))
+## top marker genes table 
+mks= all.markers
+df=mks$cluster %>% table() %>% data.frame()
+df[,'top_genes'] =''
+for(i in 1:length(unique(mks$cluster))){
+  if(df[i,]$Freq >= 30){
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% head(30) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }else{
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }
+}
+```
+  
+## Top 30 genes table
+```{r}
+DT::datatable(df, caption = 'Top 30 genes') 
+```
+
+## Cell type marker genes
+```{r, echo=FALSE}
+data <- data.frame(
+  Category = c("B", "Macrophage", "DC", "Fibroblast", "Tcell", "NK", "RBC", "Epithelial", "Tumor", "Monocyte"),
+  Genes = c("CD79A, IGHM, CD79B, MS4A1",
+            "CD14, VSIG4, C1QB, C1QA, APOE, SPP1, CD83",
+            "ITGAX, ITGAM, CD1C,  FLT3, HLA-DRA, HLA-DRB1",
+            "COL3A1, COL4A1, COL4A2, S100A16, UGDH",
+            "TCF7, CD3G, CD3E, CD3D, CD4, CD28, BCL11B, CD8A, CD8B, ICOS",
+            "GNLY, KLRD1, KLRB1, KLRC1",
+            "HBB",
+            "KRT18, KRT8, KRT18, KRT19",
+            "CTLA4, HAVCR2, EGFR, KRAS, MYC, CD274",
+            "CD14, CD68, CCR2, CSF1R")
+)
+
+DT::datatable(data, caption = 'Cell type marker genes') 
+
+```
+
+## Expression of cell type markers in violin plot
+```{r, echo=FALSE}
+# Reverse the order of 'ident' levels
+obj.srt@meta.data$rev.cluster <- factor(obj.srt@meta.data$RNA_snn_res.0.2, 
+                                        levels = rev(levels(obj.srt@meta.data$RNA_snn_res.0.2)))
+
+genes_vector <- c("CD79A", "IGHM", "CD79B", "MS4A1",
+                  "CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83",
+                  "ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1",
+                  "COL3A1", "COL4A1", "COL4A2", "S100A16", "UGDH",
+                  "TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS",
+                  "GNLY", "KLRD1", "KLRB1", "KLRC1",
+                  "HBB",
+                  "KRT18", "KRT8", "KRT18", "KRT19",
+                  "CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274",
+                  "CD14", "CD68", "CCR2", "CSF1R")
+
+VlnPlot(obj.srt, features = genes_vector, group.by = "rev.cluster",
+        stack = T, flip = F) + NoLegend()
+```
+
+```{r, echo=FALSE}
+data <- data.frame(
+  cluster = c(
+    "clustere0", "clustere1", "clustere2", "clustere3", "clustere4",
+    "clustere5", "clustere6", "clustere7", "clustere8", "clustere9",
+    "clustere10", "clustere11", "clustere12", "clustere13"
+  ),
+  type = c(
+    "Epithelial", "T cell", "Macrophage", "Macrophage", "Fibroblast",
+    "Epithelial-tumor", "Epithelial-tumor", "NK", "Fibroblast", "Fibroblast",
+    "B cell", "Macrophage", "Macrophage", "UKN"
+  )
+)
+DT::datatable(data, caption = 'Cell type guess based on Vlnplot', rownames = F) 
+
+```
+
+
+**Add cell type based on cluster resolution 0.2**
+```{r, echo=FALSE}
+# add cell type based on cluster resolution 0.2
+type_vector <- c(
+    "Epithelial", "T cell", "Macrophage1", "Macrophage2", "Fibroblast1",
+    "Epithelial-tumor1", "Epithelial-tumor2", "NK", "Fibroblast2", "Fibroblast3",
+    "B cell", "Macrophage3", "Macrophage4", "UKN"
+  )
+
+obj.srt@meta.data$cell_type = factor(obj.srt@meta.data$RNA_snn_res.0.2)
+levels(obj.srt@meta.data$cell_type) = type_vector
+```
+
+**Add main cell type based on cluster resolution 0.2**
+```{r}
+# add main cell type based on cluster resolution 0.2
+types <- c(
+    "Epithelial", "T cell", "Macrophage", "Macrophage", "Fibroblast",
+    "Epithelial-tumor", "Epithelial-tumor", "NK", "Fibroblast", "Fibroblast",
+    "B cell", "Macrophage", "Macrophage", "UKN"
+  )
+
+obj.srt@meta.data$main_cell_type = factor(obj.srt@meta.data$RNA_snn_res.0.2)
+levels(obj.srt@meta.data$main_cell_type) = types
+```
+
+
+# Cell types
+   
+## Cell types in UMAP
+```{r,fig.height=4, fig.width=6}
+DimPlot(obj.srt, group.by = 'cell_type')
+```
+
+```{r, fig.height=4, fig.width=5}
+DimPlot(obj.srt, group.by = 'cell_type', label = T, label.box = T, label.size = 3) + NoLegend()
+```
+
+<br>
+```{r, fig.height=4, fig.width=6}
+DimPlot(obj.srt, group.by = 'main_cell_type')
+```
+
+```{r, fig.height=4, fig.width=4.5}
+DimPlot(obj.srt, group.by = 'main_cell_type', label = T, label.box = T, label.size = 2) + NoLegend()
+```
+
+<br>
+**Display main cell types by treatment**
+
+```{r, fig.height=8, fig.width=16}
+obj.srt@reductions$umap@cell.embeddings %>% data.frame() %>% 
+  ggplot(aes(UMAP_1, UMAP_2, color=obj.srt$main_cell_type)) + geom_point(size=0.1) +
+  facet_wrap(obj.srt$orig.ident~obj.srt$sample, ncol = 4) +
+  theme_classic() +guides(colour = guide_legend(override.aes = list(size=5))) +
+  labs(color = "Main Cell Type")
+```
+
+## Number of cells in main cell types
+```{r}
+obj.srt@meta.data %>% select(main_cell_type, orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by main cell type and sample and treatment')
+```
+
+## Number of cells in cell types
+```{r}
+obj.srt@meta.data %>% select(cell_type, orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by main cell type and sample and treatment')
+```
+
+## Distribution of cell types by patient and main cell type
+
+**Process the data**
+```{r, echo=FALSE}
+## sankey plot 
+## sankey plot 
+library(ggsankey)
+library(ggplot2)
+library(dplyr)
+
+data =obj.srt@meta.data[, c('orig.ident','RNA_snn_res.0.2','main_cell_type')]
+
+# Function to create a Sankey plot
+create_sankey_plot <- function(data, column_names, title, show_labels = FALSE){
+  df <- data %>%
+    make_long(!!column_names[1], !!column_names[2], !!column_names[3])
+  
+  dagg <- df %>%
+    group_by(node) %>%
+    tally()
+  
+  df2 <- merge(df, dagg, by.x = 'node', by.y = 'node', all.x = TRUE)
+  
+  pl <- ggplot(df2, aes(x = x,
+                        next_x = next_x,
+                        node = node,
+                        next_node = next_node,
+                        fill = factor(node),
+                        label = paste0(node," n=", n))
+  )
+  
+  pl <- pl + geom_sankey(flow.alpha = 0.5, color = "gray40", show.legend = show_labels)
+  if (show_labels) {
+    pl <- pl + geom_sankey_label(size = 3, color = "white", fill = "gray40", hjust = 1)  # Change hjust value to 1 (right-aligned)
+  }
+  
+  pl <- pl + theme_bw()
+  pl <- pl + theme(legend.position = "none")
+  pl <- pl + theme(axis.title = element_blank(),
+                   axis.text.y = element_blank(),
+                   axis.ticks = element_blank(),
+                   panel.grid = element_blank())
+  pl <- pl + scale_fill_viridis_d(option = "inferno")
+  pl <- pl + labs(title = "Sankey diagram")
+  pl <- pl + labs(subtitle = "cell distribution")
+  
+  pl <- pl + labs(fill = 'Nodes')
+  
+  return(pl)
+}
+
+# Assuming obj.srt@meta.data is your data and you want to use specific columns for the Sankey plot
+column_names <- c('orig.ident', 'RNA_snn_res.0.2','main_cell_type')
+
+# Create the Sankey plot using the specified columns
+sankey_plot <- create_sankey_plot(data = obj.srt@meta.data, column_names, 
+                                  title = "TN30293_TN30298", show_labels = TRUE)
+```
+
+**Sankey plot**
+```{r,fig.height=6, fig.width=10}
+# Display the plot
+print(sankey_plot)
+```
+
+
+# Sample distribution in main cell type
+
+```{r, echo=F}
+plot_R_NR_umap_compare <- function(obj.srt, mct, t2=c('30293', '30298')) {
+  obj.srt@meta.data <- obj.srt@meta.data %>% 
+    mutate(compare = ifelse(main_cell_type == mct & orig.ident == t2[1], t2[1],
+                            ifelse(main_cell_type == mct & orig.ident == t2[2], t2[2], 'other')))
+  obj.srt@meta.data$compare <- factor(obj.srt@meta.data$compare,
+                                      levels = c(t2, 'other'))
+  
+  p <- obj.srt@reductions$umap@cell.embeddings %>% data.frame() %>% 
+    ggplot(aes(UMAP_1, UMAP_2, color = obj.srt$compare)) + geom_point(size = 0.1) +
+    theme_classic() + guides(colour = guide_legend(override.aes = list(size = 5))) +
+    theme(legend.title =element_blank()) +
+    scale_color_manual(values = c('red', 'blue', 'grey'))+
+    ggtitle(mct)
+  
+  print(p)
+}
+
+plot_R_NR_umap_compare_treat <- function(obj.srt, mct, t2=c('30293', '30298')) {
+  obj.srt@meta.data <- obj.srt@meta.data %>% 
+    mutate(compare = ifelse(main_cell_type == mct & orig.ident == t2[1], t2[1],
+                            ifelse(main_cell_type == mct & orig.ident == t2[2], t2[2], 'other')))
+  obj.srt@meta.data$compare <- factor(obj.srt@meta.data$compare,
+                                      levels = c(t2, 'other'))
+  
+  p <- obj.srt@reductions$umap@cell.embeddings %>% data.frame() %>% 
+    ggplot(aes(UMAP_1, UMAP_2, color = obj.srt$compare)) + geom_point(size = 0.1) +
+    theme_classic() + guides(colour = guide_legend(override.aes = list(size = 5))) +
+    theme(legend.title =element_blank()) +
+    facet_grid(.~obj.srt$sample)+
+    scale_color_manual(values = c('red', 'blue', 'grey'))+
+    ggtitle(mct)
+  
+  print(p)
+}
+```
+
+
+## Main Cell Types in data
+```{r}
+obj.srt$main_cell_type %>% unique() %>% as.vector() %>% paste0(collapse = ',')
+```
+
+## UMAP by Main Cell Type
+```{r, echo=T, fig.height= 4, fig.width=5 }
+# plot cells in UMAP
+plot_R_NR_umap_compare(obj.srt, mct='Fibroblast', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='T cell', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='Macrophage', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='B cell', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='Epithelial-tumor', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='NK', t2=c('30293', '30298'))
+plot_R_NR_umap_compare(obj.srt, mct='Epithelial', t2=c('30293', '30298'))
+```
+
+## UMAP by Main Cell Type and Treatment
+```{r, fig.height=4, fig.width=15}
+plot_R_NR_umap_compare_treat(obj.srt, mct='Fibroblast', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='T cell', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='Macrophage', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='B cell', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='Epithelial-tumor', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='NK', t2=c('30293', '30298'))
+plot_R_NR_umap_compare_treat(obj.srt, mct='Epithelial', t2=c('30293', '30298'))
+```

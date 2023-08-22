@@ -1,0 +1,155 @@
+--- 
+title: "Takeda NK  supplement"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::readthedown: 
+    code_folding: hide 
+    number_sections: TRUE
+--- 
+
+
+<style> 
+#TOC { 
+  top: 1%; 
+  opacity: 0.5; 
+} 
+#TOC:hover { 
+  opacity: 1; 
+} 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+**R Markdown**
+
+This is a document for subset data of MT30271 and MT30273.
+
+The details regarding MT30217 and MT30273 are currently confidential.
+
+<br>
+<hr>
+<br>
+
+# Import preprocessed data
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/'
+obj.srt = readRDS(paste0(dir,'rds/Takeda.NK.30293.30298.subset.23.08.21.rds'))
+```
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 20000. 
+
+mitochondrial cutoff : 25. 
+
+other cutoffs : NA. 
+
+doublet removal (scrublet) : Y. 
+
+regression: ribosomal genes. 
+
+# Gene expression on UMAP
+
+## Cell type marker genes
+```{r}
+data <- data.frame(
+  Category = c("B", "Macrophage", "DC", "Fibroblast", "Tcell", "NK", "RBC", "Epithelial", "Tumor", "Monocyte"),
+  Genes = c("CD79A, IGHM, CD79B, MS4A1",
+            "CD14, VSIG4, C1QB, C1QA, APOE, SPP1, CD83",
+            "ITGAX, ITGAM, CD1C,  FLT3, HLA-DRA, HLA-DRB1",
+            "COL3A1, COL4A1, COL4A2, S100A16, UGDH",
+            "TCF7, CD3G, CD3E, CD3D, CD4, CD28, BCL11B, CD8A, CD8B, ICOS",
+            "GNLY, KLRD1, KLRB1, KLRC1",
+            "HBB",
+            "KRT18, KRT8, KRT18, KRT19",
+            "CTLA4, HAVCR2, EGFR, KRAS, MYC, CD274",
+            "CD14, CD68, CCR2, CSF1R")
+)
+
+DT::datatable(data, caption = 'Cell type marker genes') 
+```
+
+```{r, echo=F}
+genes_vector <- c("CD79A", "IGHM", "CD79B", "MS4A1",
+                  "CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83",
+                  "ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1",
+                  "COL3A1", "COL4A1", "COL4A2", "S100A16", "UGDH",
+                  "TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS",
+                  "GNLY", "KLRD1", "KLRB1", "KLRC1",
+                  "HBB",
+                  "KRT18", "KRT8", "KRT18", "KRT19",
+                  "CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274",
+                  "CD14", "CD68", "CCR2", "CSF1R")
+```
+
+
+## B cell type
+```{r, fig.height=6, fig.width=8}
+genes = c("CD79A", "IGHM", "CD79B", "MS4A1")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 2)
+```
+
+## Macrophage type
+```{r, fig.height=9, fig.width=10}
+genes = c("CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 3)
+```
+
+## DC type
+```{r, fig.height=6, fig.width=10}
+genes = c("ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 3)
+```
+
+## Fibroblast type
+```{r, fig.height=6, fig.width=10}
+genes = c("COL3A1", "COL4A1", "COL4A2", "S100A16", "UGDH")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 3)
+```
+
+## Tcell type
+```{r, fig.height=9, fig.width=15}
+genes = c("TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 4)
+```
+
+## NK type
+```{r, fig.height=6, fig.width=8}
+genes = c("GNLY", "KLRD1", "KLRB1", "KLRC1")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 2)
+```
+
+## RBC type
+```{r, fig.height=3, fig.width=4}
+genes = c("HBB")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 1)
+```
+
+## Epithelial cell type
+```{r, fig.height=6, fig.width=8}
+genes = c("KRT18", "KRT8", "KRT18", "KRT19")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 2)
+```
+
+## Tumor type
+```{r, fig.height=6, fig.width=10}
+genes = c("CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 3)
+```
+
+## Monocyte type
+```{r, fig.height=6, fig.width=8}
+genes = c("CD14", "CD68", "CCR2", "CSF1R")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 2)
+```
