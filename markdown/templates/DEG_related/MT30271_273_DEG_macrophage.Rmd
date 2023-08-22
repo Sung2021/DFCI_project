@@ -1,0 +1,866 @@
+---
+title: "MT30271 MT30273 comparison analysis"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::readthedown: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 4
+    toc_float: true
+--- 
+
+
+<style> 
+#TOC { 
+  top: 1%; 
+  opacity: 0.5; 
+} 
+#TOC:hover { 
+  opacity: 1; 
+} 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+**R Markdown**
+
+This is a document for subset data of MT30217 and MT30273.
+
+The details regarding MT30217 and MT30273 are currently confidential.
+
+<br>
+<hr>
+<br>
+
+# Import preprocessed data
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+obj.srt = readRDS(paste0(dir,'rds/MT30271.30273.23.07.31.rds'))
+```
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 20000. 
+
+mitochondrial cutoff : 25. 
+
+other cutoffs : NA. 
+
+doublet removal (scrublet) : Y. 
+
+regression: ribosomal genes. 
+
+---
+
+# Number of cells in main cell types
+
+```{r}
+obj.srt@meta.data %>% select(main_cell_type, res, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by main cell type and R/NR and treatment')
+```
+
+
+** Define functions for downstream analysis**
+```{r, echo=F}
+#######################
+# Define functions
+set_compare_column <- function(obj.srt, filter1, filter1_selection, filter2, filter2_selection, filter3, selected_groups) {
+  rows1 <- obj.srt@meta.data %>% 
+    filter(get(filter1) == filter1_selection) %>% 
+    filter(get(filter2) == filter2_selection) %>% 
+    filter(get(filter3) %in% selected_groups[1]) %>% rownames()
+  
+  rows2 <- obj.srt@meta.data %>% 
+    filter(get(filter1) == filter1_selection) %>% 
+    filter(get(filter2) == filter2_selection) %>% 
+    filter(get(filter3) %in% selected_groups[2]) %>% rownames()
+  
+  obj.srt@meta.data <- obj.srt@meta.data %>%
+    mutate(compare = case_when(
+      rownames(.) %in% rows1 ~ 'g1',
+      rownames(.) %in% rows2 ~ 'g2',
+      TRUE ~ 'other'
+    ))
+  
+  return(obj.srt)
+}
+DEG.function = function(obj.srt,
+                        filter1 = filter1_selection,
+                        groups = selected_groups){
+  # add compare to the ident
+  Idents(obj.srt) = 'compare'
+  logfc=log2(1)
+  mks =FindMarkers(obj.srt, ident.1 = 'g2', ident.2 = 'g1', 
+                   logfc.threshold = logfc)
+  pval=0.05
+  fc=1.2
+  mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                                 ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  mks =mks %>% mutate(labels= ifelse(DE == 'UP', gene, ifelse(DE=='DN',gene,'other')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  mks[,'main_cell_type']= filter1
+  mks[,'comparison'] = paste0(groups, collapse = '_')
+  return(mks)
+}
+plot_volcano_text <- function(mks, title) {
+  if (length(unique(mks$DE)) == 3) {
+    # Set DE levels and add gene names
+    mks$DE <- factor(mks$DE, levels = c('UP', 'DN', 'no_sig'))
+    mks$gene <- rownames(mks)
+    
+    # Set fold change threshold
+    fc <- 1.2
+    
+    # Create the ggplot plot
+    p <- mks %>%
+      mutate(labels = ifelse(labels == 'other', '', labels)) %>%
+      ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c('red', 'blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      ggtitle(title) +
+      # Use geom_text with hjust argument to adjust label position
+      geom_text(aes(label = labels), size = 2.5, show.legend = FALSE, hjust = 0, nudge_x = 0.01) +
+      ggeasy::easy_center_title() ## to center title
+    
+    # Print the plot
+    print(p)
+  } else if (length(unique(mks$DE)) == 2 && all(unique(mks$DE) %in% c('UP', 'no_sig'))) {
+    # Set DE levels and add gene names
+    mks$DE <- factor(mks$DE, levels = c('UP', 'no_sig'))
+    mks$gene <- rownames(mks)
+    
+    # Set fold change threshold
+    fc <- 1.2
+    
+    # Create the ggplot plot
+    p <- mks %>%
+      mutate(labels = ifelse(labels == 'other', '', labels)) %>%
+      ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c('red', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      ggtitle(title) +
+      # Use geom_text with hjust argument to adjust label position
+      geom_text(aes(label = labels), size = 2.5, show.legend = FALSE, hjust = 0, nudge_x = 0.01) +
+      ggeasy::easy_center_title() ## to center title
+    
+    # Print the plot
+    print(p)
+  } else if (length(unique(mks$DE)) == 2 && all(unique(mks$DE) %in% c('DN', 'no_sig'))) {
+    # Set DE levels and add gene names
+    mks$DE <- factor(mks$DE, levels = c('DN', 'no_sig'))
+    mks$gene <- rownames(mks)
+    
+    # Set fold change threshold
+    fc <- 1.2
+    
+    # Create the ggplot plot
+    p <- mks %>%
+      mutate(labels = ifelse(labels == 'other', '', labels)) %>%
+      ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c('blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      ggtitle(title) +
+      # Use geom_text with hjust argument to adjust label position
+      geom_text(aes(label = labels), size = 2.5, show.legend = FALSE, hjust = 0, nudge_x = 0.01) +
+      ggeasy::easy_center_title() ## to center title
+    
+    # Print the plot
+    print(p)
+  }
+}
+```
+
+# Find DEGs and plot them in volcanoplot
+
+## Macrophage 
+
+### Macrophage & Responder & CTL vs TAK
+
+** Filtering parameters**
+```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'macrophage',
+  filter2 = 'res',
+  filter2_selection = 'R',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'TAK')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'macrophage'
+filter2= 'res'
+filter2_selection= 'R'
+filter3= 'sample'
+selected_groups= c('CTL','TAK')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.macrophage= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.macrophage, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'UP') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'DN') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+
+### Macrophage & Responder & CTL vs COM
+
+** Filtering parameters**
+```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'macrophage',
+  filter2 = 'res',
+  filter2_selection = 'R',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'COM')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'macrophage'
+filter2= 'res'
+filter2_selection= 'R'
+filter3= 'sample'
+selected_groups= c('CTL','COM')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.macrophage= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.macrophage, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'UP') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'DN') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+### Macrophage & Non Responder & CTL vs TAK
+
+** Filtering parameters**
+```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'macrophage',
+  filter2 = 'res',
+  filter2_selection = 'NR',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'TAK')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'macrophage'
+filter2= 'res'
+filter2_selection= 'NR'
+filter3= 'sample'
+selected_groups= c('CTL','TAK')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.macrophage= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.macrophage, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'UP') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'DN') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+
+### Macrophage & Non Responder & CTL vs COM
+
+** Filtering parameters**
+```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'macrophage',
+  filter2 = 'res',
+  filter2_selection = 'NR',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'COM')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'macrophage'
+filter2= 'res'
+filter2_selection= 'NR'
+filter3= 'sample'
+selected_groups= c('CTL','COM')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.macrophage= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.macrophage, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'UP') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.macrophage %>% 
+                                                 filter(DE == 'DN') %>% 
+                                                 select(gene) %>% 
+                                                 pull() %>% 
+                                                 paste0(collapse = ',')),
+           row.names = 'macrophage') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+## T cell 
+
+### T cell & Responder & CTL vs TAK
+
+** Filtering parameters**
+  ```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'T cell',
+  filter2 = 'res',
+  filter2_selection = 'R',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'TAK')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'T cell'
+filter2= 'res'
+filter2_selection= 'R'
+filter3= 'sample'
+selected_groups= c('CTL','TAK')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.out= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.out, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'UP') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'DN') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+
+### T cell & Responder & CTL vs COM
+
+** Filtering parameters**
+  ```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'T cell',
+  filter2 = 'res',
+  filter2_selection = 'R',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'COM')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'T cell'
+filter2= 'res'
+filter2_selection= 'R'
+filter3= 'sample'
+selected_groups= c('CTL','COM')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.out= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.out, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'UP') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'DN') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+### T cell & Non Responder & CTL vs TAK
+
+** Filtering parameters**
+  ```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'T cell',
+  filter2 = 'res',
+  filter2_selection = 'NR',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'TAK')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'T cell'
+filter2= 'res'
+filter2_selection= 'NR'
+filter3= 'sample'
+selected_groups= c('CTL','TAK')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.out= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.out, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'UP') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'DN') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+
+
+
+### T cell & Non Responder & CTL vs COM
+
+** Filtering parameters**
+  ```{r}
+# filtering parameters
+filter_data <- data.frame(
+  filter1 = 'main_cell_type',
+  filter1_selection = 'T cell',
+  filter2 = 'res',
+  filter2_selection = 'NR',
+  filter3 = 'sample',
+  selected_groups = c('CTL', 'COM')
+)
+
+filter_data %>% gt::gt()
+
+```
+
+
+```{r}
+# filtering parameters
+filter1= 'main_cell_type'
+filter1_selection= 'T cell'
+filter2= 'res'
+filter2_selection= 'NR'
+filter3= 'sample'
+selected_groups= c('CTL','COM')
+
+# Define groups to compare
+obj.srt <- set_compare_column(obj.srt,
+                              filter1 = filter1,
+                              filter1_selection = filter1_selection,
+                              filter2 = filter2,
+                              filter2_selection = filter2_selection,
+                              filter3 = filter3,
+                              selected_groups = selected_groups)
+# Check the table of the 'compare' column
+# table(obj.srt@meta.data$compare) 
+
+# Find DEGs
+DEG.out= DEG.function(obj.srt,
+                             filter1 = filter1_selection,
+                             groups = selected_groups)
+
+```
+
+
+#### Volcanoplot
+```{r}
+# Plot volcano plot for DEGs
+plot_volcano_text(mks = DEG.out, title=paste0(filter1_selection, ' ',
+                                                     filter2_selection, ' ',
+                                                     paste0(selected_groups, collapse = ' vs ')))
+```
+
+
+
+#### Up-regulated genes
+```{r}
+data.frame("UP-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'UP') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
+#### DOWN-regulated genes
+```{r}
+data.frame("DN-regulated genes" = (DEG.out %>% 
+                                     filter(DE == 'DN') %>% 
+                                     select(gene) %>% 
+                                     pull() %>% 
+                                     paste0(collapse = ',')),
+           row.names = 'T cell') %>% DT::datatable(options = list(scrollX=T))
+```
+
+
+
