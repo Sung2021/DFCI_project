@@ -1,0 +1,115 @@
+---
+title: "AUC_module"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+--- 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+# AUC module application
+
+AUC는 "Area Under the Curve"의 약어로서, 주로 수신자 조작 특성 곡선(Receiver Operating Characteristic Curve, ROC Curve) 아래의 면적을 나타내는 지표입니다. ROC 곡선은 이진 분류 모델의 성능을 평가하는 데 사용되며, AUC는 이 곡선의 형태와 모델의 분류 능력을 요약합니다.
+
+AUC는 0부터 1까지의 값을 가지며, 값이 클수록 모델의 분류 능력이 좋음을 나타냅니다. AUC가 1에 가까울수록 모델은 완벽한 분류 능력을 가진 것으로 판단됩니다. AUC가 0.5에 가까울수록 모델은 무작위 예측과 비슷한 수준의 분류 능력을 가진 것으로 간주됩니다.
+
+일반적으로 AUC 값은 다음과 같은 해석을 받습니다:
+
+- AUC > 0.9: 매우 우수한 분류 능력
+- 0.8 < AUC ≤ 0.9: 우수한 분류 능력
+- 0.7 < AUC ≤ 0.8: 양호한 분류 능력
+- 0.6 < AUC ≤ 0.7: 보통 분류 능력
+- 0.5 ≤ AUC ≤ 0.6: 무작위 예측과 유사한 분류 능력
+
+AUC는 주로 의학 분야에서 질병 예측 모델, 암 검출 등의 분야에서 사용되는데, 모델의 예측 능력을 정량화하고 비교하는 데 유용합니다. 
+
+https://www.bioconductor.org/packages/devel/bioc/vignettes/AUCell/inst/doc/AUCell.html#overview-of-the-workflow
+
+AUCell to identify cells with an active ‘gene set’ (i.e. gene signatures) in single-cell RNA-seq data. AUCell uses the “Area Under the Curve” (AUC) to calculate whether a critical subset of the input gene set is enriched within the expressed genes for each cell. The distribution of AUC scores across all the cells allows exploring the relative expression of the signature. Since the scoring method is ranking-based, AUCell is independent of the gene expression units and the normalization procedure. In addition, since the cells are evaluated individually, it can easily be applied to bigger datasets, subsetting the expression matrix if needed.
+
+
+# Test
+```{r}
+library(dplyr)
+library(Seurat)
+library(ggplot2)
+```
+
+## Import data
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/rds/'
+obj.srt= readRDS(paste0(dir,'NK_MN1.MN2.23.07.27.rds'))
+```
+
+```{r}
+# import data from single-cell experiment
+exprMatrix <- obj.srt@assays$RNA@data
+### Convert to sparse:
+exprMatrix <- as(exprMatrix, "dgCMatrix")
+dim(exprMatrix) 
+```
+
+## geneset  
+```{r}
+df <- data.frame(
+  Category = c("B", "Macrophage", "DC", "Fibroblast", "Tcell", "NK", "RBC", "Epithelial", "Tumor", "Monocyte"),
+  Genes = c("CD79A, IGHM, CD79B, MS4A1",
+            "CD14, VSIG4, C1QB, C1QA, APOE, SPP1, CD83",
+            "ITGAX, ITGAM, CD1C,  FLT3, HLA-DRA, HLA-DRB1",
+            "COL3A1, COL4A1, COL4A2, S100A16, UGDH",
+            "TCF7, CD3G, CD3E, CD3D, CD4, CD28, BCL11B, CD8A, CD8B, ICOS",
+            "GNLY, KLRD1, KLRB1, KLRC1",
+            "HBB",
+            "KRT18, KRT8, KRT18, KRT19",
+            "EGFR, KRAS, MYC, EPCAM",
+            "CD14, CD68, CCR2, CSF1R")
+)
+
+gene_list <- lapply(strsplit(df$Genes, ", "), as.vector)
+names(gene_list) <- df$Category
+
+# Print the resulting list
+print(gene_list)
+```
+
+```{r}
+gmt = gene_list
+```
+
+## AUC
+```{r}
+library(AUCell)
+library(GSEABase)
+```
+## Build gene-expression rankings for each cell
+```{r}
+cells_rankings <- AUCell_buildRankings(exprMatrix, plotStats=TRUE)
+```
+
+### cells rankings
+```{r}
+cells_rankings
+```
+
+## Calculate enrichment for the gene signatures (AUC)   
+```{r}
+cells_AUC <- AUCell_calcAUC(gmt, cells_rankings)
+cells_AUC
+```
+## Determine the cells with the given gene signatures or active gene sets   
+```{r}
+cells_assignment <- AUCell_exploreThresholds(cells_AUC, plotHist=TRUE, assign=TRUE) 
+```
+  
+```{r}
+warningMsg <- sapply(cells_assignment, function(x) x$aucThr$comment)
+warningMsg[which(warningMsg!="")]
+```
+
