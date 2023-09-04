@@ -40,3 +40,28 @@ The details regarding ____ are currently confidential.
 <br>
 <hr>
 <br>
+
+# Introduction of the project 
+
+
+# Import data
+
+## Information of data 
+
+
+# UMAP
+
+# Clustering
+
+# Cell type annotation
+
+# DEG
+
+# GSEA
+
+# AUC
+
+# Additional 1
+
+# Additional 2 
+
