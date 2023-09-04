@@ -1,9 +1,9 @@
 ---
-title: "Takeda NK project"
+title: "Template"
 author: "Sung Rye Park"
 date: "`r format(Sys.Date())`"
 output:  
-  rmdformats::readthedown: 
+  rmdformats::robobook: 
     code_folding: hide 
     number_sections: TRUE
     toc_depth: 6
@@ -31,9 +31,9 @@ library(ggplot2)
 library(DT)
 ```
 
-**R Markdown**
+**Read me**
 
-This is a document for subset data of ______.
+This is a template for general markdown report.
 
 The details regarding ____ are currently confidential.
 
