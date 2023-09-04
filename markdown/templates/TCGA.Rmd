@@ -1,0 +1,266 @@
+---
+title: "TCGA templates"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+--- 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+```
+
+# TCGA study 
+
+This template is based on the following url:   
+https://benbermanlab.com/assets/code/Workshop%20-%20TCGA%20data%20analysis.html
+https://www.bioconductor.org/packages/devel/bioc/vignettes/TCGAbiolinks/inst/doc/mutation.html.  
+https://bioc.ism.ac.jp/packages/3.3/bioc/vignettes/TCGAbiolinks/inst/doc/tcgaBiolinks.html.  
+https://github.com/tiagochst/ELMER_workshop_2019   
+
+
+
+  
+Data structure.  
+In order to filter the data available in GDC some fields are available such as project (TCGA, TARGET, etc.), data category (Transcriptome Profiling, DNA methylation, Clinical, etc.), data type (Gene Expression Quantification, Isoform Expression Quantification, Methylation Beta Value, etc.), experimental strategy (miRNA-Seq, RNA-Seq, etc.), Workflow Type, platform, access type and others.
+  
+  
+## Available Tumor list.  
+Breast
+- TCGA-BRCA  ( 1222 )  -  Breast invasive carcinoma
+<br>
+Brain
+- TCGA-GBM   (  174 )  -  Glioblastoma multiforme <br>
+- TCGA-LGG   (  529 )  -  Brain Lower Grade Glioma <br>
+<br>
+Endocrine
+- TCGA-ACC   (   79 )  -  Adrenocortical carcinoma <br>
+- TCGA-PCPG  (  186 )  -  Pheochromocytoma and Paraganglioma <br>
+- TCGA-THCA  (  568 )  -  Thyroid carcinoma <br>
+<br>
+Gastrointestinal
+- TCGA-CHOL  (   45 )  -  Cholangiocarcinoma <br>
+- TCGA-COAD  (  521 )  -  Colon adenocarcinoma <br>
+- TCGA-READ  (  177 )  -  Rectum adenocarcinoma <br>
+- TCGA-ESCA  (  173 )  -  Esophageal carcinoma <br>
+- TCGA-LIHC  (  424 )  -  Liver hepatocellular carcinoma <br>
+- TCGA-PAAD  (  182 )  -  Pancreatic adenocarcinoma <br>
+- TCGA-STAD  (  407 )  -  Stomach adenocarcinoma <br>
+<br>
+Gynecologic 
+- TCGA-CESC  (  309 )  -  Cervical squamous cell carcinoma and endocervical  adenocarcinoma <br>
+- TCGA-UCEC  (  587 )  -  Uterine Corpus Endometrial Carcinoma <br>
+- TCGA-UCS   (   56 )  -  Uterine Carcinosarcoma <br>
+<br> 
+HeadNeck
+- TCGA-HNSC  (  546 )  -  Head and Neck squamous cell carcinoma <br>
+- TCGA-UVM   (   80 )  -  Uveal Melanoma <br>
+<br> 
+Hemato
+- TCGA-DLBC  (   48 )  -  Lymphoid Neoplasm Diffuse Large B-cell Lymphoma <br>
+- TCGA-LAML  (  151 )  -  Acute Myeloid Leukemia <br>
+- TCGA-THYM  (  121 )  -  Thymoma <br>
+<br>
+Skin
+- TCGA-SKCM  (  472 )  -  Skin Cutaneous Melanoma <br>
+<br>
+ST
+- TCGA-SARC  (  265 )  -  Sarcoma <br>
+<br>
+Thoracic
+- TCGA-MESO  (   86 )  -  Mesothelioma <br>
+- TCGA-LUAD  (  594 )  -  Lung adenocarcinoma <br>
+- TCGA-LUSC  (  551 )  -  Lung squamous cell carcinoma <br>
+<br> 
+Urologic
+- TCGA-BLCA  (  433 )  -  Bladder Urothelial Carcinoma <br>
+- TCGA-PRAD  (  551 )  -  Prostate adenocarcinoma <br>
+- TCGA-TGCT  (  156 )  -  Testicular Germ Cell Tumors <br>
+- TCGA-OV    (  379 )  -  Ovarian serous cystadenocarcinoma <br>
+- TCGA-KICH  (   89 )  -  Kidney Chromophobe <br>
+- TCGA-KIRC  (  611 )  -  Kidney renal clear cell carcinoma <br>
+- TCGA-KIRP  (  321 )  -  Kidney renal papillary cell carcinoma <br>
+
+Loading required packages
+```{r}
+suppressMessages({
+    library(TCGAbiolinks)
+    #library(MultiAssayExperiment)
+    library(maftools)
+    library(dplyr)
+})
+```
+
+
+# Get Mesothelioma clinical data
+
+## GDCquery_clinic
+```{r}
+clinical <- GDCquery_clinic("TCGA-MESO")
+head(clinical)
+```
+
+## GDCquery
+```{r}
+query <- GDCquery(project = "TCGA-MESO", 
+                  data.category = "Clinical",
+                  data.type = "Clinical Supplement", 
+                  data.format = "BCR Biotab")
+GDCdownload(query)
+clinical.BCRtab.all <- GDCprepare(query)
+names(clinical.BCRtab.all)
+```
+
+```{r}
+clinical.BCRtab.all$clinical_drug_acc  %>% 
+  head  %>% 
+  as.data.frame
+```
+
+## GDCquery vs GDCquery_clinic
+GDCquery와 GDCquery_clinic은 National Cancer Institute (NCI) Genomic Data Commons (GDC)에서 제공하는 R 패키지 TCGAbiolinks의 함수입니다. 이 두 함수는 TCGA (The Cancer Genome Atlas) 데이터나 다른 유사한 유전체 데이터를 다운로드하고 검색하는 데 사용됩니다. 다음은 두 함수 간의 주요 차이점입니다:
+
+GDCquery: 이 함수는 TCGA 데이터나 GDC에서 호스팅하는 다른 데이터 세트의 생물학적 샘플 및 유전체 정보를 검색합니다. 사용자는 데이터의 유형, 프로젝트, 샘플 유형, 유전체 플랫폼 등을 지정하여 검색 쿼리를 생성할 수 있습니다. 이 함수는 데이터를 검색하는 초기 단계로 사용됩니다.
+
+GDCquery_clinic: 이 함수는 GDC에서 클리닉 데이터 (환자 정보)를 검색하기 위해 사용됩니다. 이것은 TCGA나 다른 유전체 데이터와 연결된 환자 정보를 가져올 때 사용됩니다. 환자의 연령, 성별, 종양 유형 등과 같은 정보를 검색할 수 있습니다. 이 함수를 사용하면 연구자는 생물학적 데이터와 환자 정보를 연결하여 분석할 수 있습니다.
+
+요약하면, GDCquery는 유전체 데이터 검색을 위해 사용되고, GDCquery_clinic은 환자 정보 (클리닉 데이터)를 검색하기 위해 사용됩니다. 이 두 함수는 TCGAbiolinks 패키지를 통해 TCGA 데이터를 다루는 데 필수적인 도구입니다.
+
+## BCR Biotab
+
+BCR (Biospecimen Core Resource) Biotab은 생물 시료 및 임상 정보를 관리하고 공유하기 위한 데이터 형식 중 하나입니다. BCR Biotab 형식은 주로 암 연구와 관련된 생물 시료와 임상 정보를 기록하고 전송하기 위해 사용됩니다.
+
+BCR은 주로 암 연구에서 사용되며, 이 형식을 사용하여 다음과 같은 정보를 포함하는 데이터를 저장 및 공유합니다:
+
+생물 시료 정보: 시료의 고유 식별자, 시료 유형 (조직, 혈액 등), 시료 수량, 수집 날짜 등의 정보.
+
+환자 정보: 환자의 고유 식별자, 나이, 성별, 암 유형 및 분류, 암의 조직학적 특성, 치료 및 결과와 관련된 정보.
+
+검사 및 실험 정보: 생물학적 시료에서 수행된 실험, 유전자 발현 데이터, DNA 서열 정보 등과 관련된 정보.
+
+BCR Biotab 형식은 생물 시료와 관련된 정보를 표 형태로 저장하며, 데이터를 구조화하고 공유하기에 적합한 형식을 제공합니다. 이 형식은 주로 암 연구와 관련된 대형 데이터 저장소나 연구 프로젝트에서 사용되며, 연구자들은 이러한 데이터를 분석하여 암 연구에 유용한 정보를 도출합니다.
+
+# RNA-Seq data
+
+## RNA-seq data options 
+
+The RNA-Seq pipeline produces raw counts, FPKM and FPKM-UQ quantifications and is described at https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/Expression_mRNA_Pipeline/.
+
+The following options are used to search mRNA results using TCGAbiolinks:   
+   
+data.category: "Transcriptome Profiling".  
+data.type: "Gene Expression Quantification".  
+workflow.type: "HTSeq - Counts", "HTSeq - FPKM", "HTSeq - FPKM-UQ".  
+
+## Download 
+
+```{r}
+query.exp.hg38 <- GDCquery(project = "TCGA-MESO", 
+                  data.category = "Transcriptome Profiling", 
+                  data.type = "Gene Expression Quantification", 
+                  workflow.type = "STAR - Counts")
+GDCdownload(query.exp.hg38)
+raw.counts <- GDCprepare(query = query.exp.hg38, summarizedExperiment = FALSE)
+```
+
+```{r}
+head(raw.counts)
+```
+
+
+# Mutation
+TCGAbiolinks has provided a few functions to download mutation data from GDC. There are two options to download the data:
+  
+Use GDCquery_Maf which will download MAF aligned against hg38.
+This example will download MAF (mutation annotation files) for variant calling pipeline muse. Pipelines options are: muse, varscan2, somaticsniper, mutect. For more information please access GDC docs.
+  
+## maf file Download.  
+```{r}
+# Mutation data (hg38)
+query <- GDCquery(
+    project = "TCGA-MESO", 
+    data.category = "Simple Nucleotide Variation", 
+    access = "open",
+    data.type = "Masked Somatic Mutation", 
+    workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+)
+GDCdownload(query)
+maf <- GDCprepare(query)
+```
+
+## Snapshot   
+```{r}
+# Only first 20 to make render faster
+DT::datatable(maf[1:20,],
+          filter = 'top',
+          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+          rownames = FALSE)
+```
+
+Mutation data MC3 file
+
+MC3 파일은 TCGA (The Cancer Genome Atlas) 프로젝트에서 사용되는 변이 데이터의 일부인 "MC3 (Mutation Calling 3)" 파일을 나타냅니다. MC3 파일은 유전자의 돌연변이 정보를 포함하며, 종양 유형 및 환자에 대한 정보와 함께 제공됩니다.
+
+TCGA 프로젝트에서는 다양한 종류의 유전자 돌연변이 데이터를 수집하고 분석합니다. MC3 파일은 이러한 데이터 중 하나로서, 다음과 같은 정보를 포함할 수 있습니다:
+
+유전자 돌연변이: 각 유전자에 대한 돌연변이 정보, 예를 들어 단일 염기 다형성 (SNP), 인서션, 딜레션 등.
+
+종양 유형: 해당 돌연변이가 발생한 종양 유형 또는 조직 유형.
+
+환자 정보: 각 돌연변이와 연결된 환자의 정보, 예를 들어 환자의 나이, 성별, 종양의 병기 등.
+
+MC3 파일은 암 연구 및 종양 생물학 연구에서 중요한 데이터 소스로 사용됩니다. 이 파일을 분석하면 특정 종양 유형에서의 돌연변이 패턴을 이해하고, 암의 유전적 기반을 연구할 수 있습니다. MC3 파일은 TCGA 데이터 포털이나 과학 연구 데이터베이스에서 제공됩니다.
+
+```{r}
+# maf <- getMC3MAF()
+maf <- maf %>% maftools::read.maf()
+```
+## maf plot summary
+```{r}
+DT::datatable(getSampleSummary(maf),
+          filter = 'top',
+          options = list(scrollX = TRUE, keys = TRUE, pageLength = 5), 
+          rownames = FALSE)
+plotmafSummary(maf = maf, rmOutlier = TRUE, addStat = 'median', dashboard = TRUE)
+```
+  
+## Additional plot
+```{r}
+oncoplot(maf = maf, top = 10, removeNonMutated = TRUE)
+titv = titv(maf = maf, plot = FALSE, useSyn = TRUE)
+#plot titv summary
+plotTiTv(res = titv)
+```
+## Get plot summary
+```{r}
+getSampleSummary(maf) %>% head
+```
+
+
+# Copy number alteration data
+The Copy Number Variation Analysis Pipeline is described at https://docs.gdc.cancer.gov/Data/Bioinformatics_Pipelines/CNV_Pipeline/
+
+Numeric focal-level Copy Number Variation (CNV) values were generated with "Masked Copy Number Segment" files from tumor aliquots using GISTIC2 on a project level. Only protein-coding genes were kept, and their numeric CNV values were further thresholded by a noise cutoff of 0.3:
+
+Genes with focal CNV values smaller than -0.3 are categorized as a "loss" (-1)
+Genes with focal CNV values larger than 0.3 are categorized as a "gain" (+1)
+Genes with focal CNV values between and including -0.3 and 0.3 are categorized as "neutral" (0).
+
+## Download.  
+* CNV download not working.  
+* Check the TCGA direct download   
+```{r}
+
+```
+
+# DNA methylation data
+
+
+# ATAC-Seq data   
+* Check the following link :   
+https://rpubs.com/tiagochst/atac_seq_workshop.  
+
