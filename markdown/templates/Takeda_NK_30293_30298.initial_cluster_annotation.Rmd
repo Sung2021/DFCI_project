@@ -82,8 +82,8 @@ DimPlot(obj.srt, group.by = 'sample')
 ```{r, fig.width=12, fig.height=4}
 DimPlot(obj.srt, group.by = 'sample', split.by = 'sample', ncol = 4)
 ```
-
-
+  
+  
 ### Clusters with the resolution of 0.2
 ```{r,fig.width=7, fig.height=6, out.width='50%'}
 DimPlot(obj.srt, group.by = 'RNA_snn_res.0.2')
@@ -156,7 +156,7 @@ DT::datatable(df, caption = 'Top 30 genes')
 # cell type marker 
 
 ## Dendritic cells 
-CD83: CD83 is a marker associated with mature dendritic cells.  
+CD83: CD83 is a marker associated with mature dendritic cells. CD83 is a maturation marker for dendritic cells. In the B cell lineage, CD83 is expressed especially on activated B cells and on light zone B cells during the germinal center (GC) reaction.  
 CD86: CD86 is an activation marker that is upregulated on dendritic cells upon activation.    
 CD123 (IL3RA): CD123 is a marker for plasmacytoid dendritic cells (pDCs), which produce type I interferons in response to viral infections.  
 HLA-DR: Human Leukocyte Antigen-DR (HLA-DR) is an MHC class II molecule expressed on the surface of dendritic cells involved in antigen presentation.  
@@ -212,7 +212,73 @@ p53: Mutations in the p53 gene are common in many types of cancer. p53 is a tumo
 
 CD44: CD44 is a cell adhesion molecule that is often overexpressed in cancer stem cells. It plays a role in tumor invasion and metastasis.
 
+## Neutrophil   
 
+CD66b (CEACAM8): CD66b is a cell surface protein and is one of the most specific markers for neutrophils.
+
+CD15 (FUT4): CD15, also known as FUT4, is another cell surface antigen expressed on neutrophils.
+
+CD16 (FCGR3A): CD16, or FcγRIIIA, is expressed on the surface of neutrophils and is involved in immune responses.
+
+CD11b (ITGAM): CD11b is a cell adhesion molecule that is highly expressed on the surface of neutrophils.
+
+CD63: CD63 is a tetraspanin protein associated with the granules of neutrophils. CD63 is an activation antigen in that its surface expression is upregulated from intracellular stores by stimulation 
+
+CD67 (L-selectin): CD67, or L-selectin, is another adhesion molecule that is found on neutrophils.
+
+CD177 (PRV-1): CD177 is a glycoprotein that is highly expressed on the surface of neutrophils.
+
+CXCR1 (IL8RA) and CXCR2 (IL8RB): These are receptors for the chemokine IL-8 (CXCL8) and are highly expressed on neutrophils.
+
+CD10 (NEP): CD10, or neutral endopeptidase, is expressed on neutrophils and other leukocytes.
+
+MPO (Myeloperoxidase): Myeloperoxidase is an enzyme found in the azurophilic granules of neutrophils.  
+
+## Fibroblast  
+FSP1 (S100A4): Fibroblast-specific protein 1 (FSP1), also known as S100A4, is a widely used marker for fibroblasts.
+
+Fibroblast Activation Protein (FAP): FAP is a cell surface protein that is expressed by activated fibroblasts and is often used as a fibroblast marker.
+
+Collagen Type I (COL1A1 and COL1A2): Collagen is a major component of the extracellular matrix produced by fibroblasts, and genes encoding collagen type I (COL1A1 and COL1A2) are highly expressed in these cells.
+
+Vimentin (VIM): Vimentin is an intermediate filament protein expressed in fibroblasts and is often used as a marker for mesenchymal cells, including fibroblasts.
+
+Thy1 (CD90): Thy1 is a cell surface glycoprotein expressed on fibroblasts and is used as a marker for mesenchymal stromal cells, including fibroblasts.
+
+PDGFRα (Platelet-Derived Growth Factor Receptor Alpha): PDGFRα is a receptor protein expressed on the surface of fibroblasts, and it plays a role in their activation and proliferation.
+
+SMA (Alpha-Smooth Muscle Actin): While SMA is commonly associated with smooth muscle cells, it can also be expressed in activated fibroblasts, particularly myofibroblasts.
+
+DDR2 (Discoidin Domain Receptor 2): DDR2 is a receptor tyrosine kinase that is expressed in fibroblasts and is involved in cell-matrix interactions.
+
+POSTN (Periostin): Periostin is an extracellular matrix protein that is highly expressed in fibroblasts, especially in response to tissue injury or remodeling.
+
+COL3A1 (Collagen Type III): Like collagen type I, collagen type III (encoded by COL3A1) is a major component of the extracellular matrix produced by fibroblasts.  
+
+## Mesothelioma  
+
+Mesothelioma is a rare and aggressive cancer that affects the mesothelial cells lining the pleura (the membranes around the lungs), peritoneum (the membranes lining the abdominal cavity), and other organs. Identifying specific marker genes for mesothelioma can be challenging due to its rarity and heterogeneity. However, some genes have been found to be associated with mesothelioma. 
+
+1. **Calretinin (CALB2):** Calretinin is a calcium-binding protein that is often used as a positive marker for mesothelial cells, and its expression can be elevated in mesothelioma.
+
+2. **WT1 (Wilms Tumor 1):** WT1 is a transcription factor that is expressed in normal mesothelial cells and is often used as a diagnostic marker for mesothelioma.
+
+
+4. **Podoplanin (PDPN):** Podoplanin is a glycoprotein expressed in various types of mesothelial cells and can be used as a marker for distinguishing mesothelioma from other cancers.
+
+5. **Cytokeratin 5/6 (CK5/6):** Cytokeratin 5/6 is a combination of two cytokeratin proteins that are often expressed in mesothelial cells and some mesothelioma cases.
+
+6. **BAP1 (BRCA1-Associated Protein 1):** Mutations in the BAP1 gene have been associated with an increased risk of mesothelioma. While not a diagnostic marker, BAP1 is relevant for understanding mesothelioma genetics.
+
+### Mesothelioma and its relation to Epithelial Cells   
+Mesothelioma is a type of cancer that affects the mesothelium, a thin layer of tissue that covers internal organs in the body. It is often associated with exposure to asbestos, a mineral that was widely used in construction and manufacturing until its health risks were discovered.
+
+Epithelial cells are one of the three main types of cells that make up the mesothelium. Mesothelioma can develop from any of these cell types, but it is most commonly associated with epithelial cells. In fact, around 60-70% of mesothelioma cases are epithelioid mesothelioma, which means the cancer cells have features that resemble epithelial cells.
+
+Epithelial cells are characterized by a tightly-packed arrangement and a distinct shape, which helps them to form a protective barrier. In contrast, the other two types of mesothelial cells, sarcomatoid and biphasic, have a more irregular shape and a looser arrangement.
+
+Epithelioid Mesothelioma: This is the most common subtype of mesothelioma, accounting for about 50-70% of cases. It is characterized by tumor cells that closely resemble normal epithelial cells. These cells tend to form well-defined glandular structures or exhibit a tubular or papillary pattern. Epithelioid mesothelioma cells often retain some of the typical characteristics of epithelial cells, including cell-to-cell adhesion.  
+ 
 
 # Cell type guess by common signature genes  
 
@@ -223,13 +289,13 @@ categories <- list(
   B = c("CD79A", "IGHM", "CD79B", "MS4A1"),
   Macrophage = c("CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83","MRC1", "CD80"),
   DC = c("ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1","CD83","CD86","IL3RA"),
-  Fibroblast = c("COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL4A2", "S100A16", "UGDH"),
+  Fibroblast = c("COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL4A2", "VIM","FAP"),
   Tcell = c("TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS"),
   NK = c("GNLY", "KLRD1", "KLRB1", "KLRC1"),
   RBC = c("HBB"),
   Neutrophils = c("CEACAM8","FUT4","CD63"), 
   Epithelial = c("KRT18", "KRT8", "KRT18", "KRT19"),
-  Tumor = c("CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "PDCD1", "EPCAM","MKI67", "CD44"),
+  Tumor = c("CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274", "EPCAM","MKI67", "CD44"),
   Monocyte = c("CD14", "CD68", "CCR2", "CSF1R")
 )
 
@@ -258,7 +324,7 @@ p_val_adj (Adjusted p-value): This is the adjusted p-value that takes into accou
 cluster (Cluster Label): This column provides a label or identifier indicating which cluster or group the gene belongs to. It represents the results of clustering analysis, where genes are grouped based on their function or characteristics.
 
 gene (Gene Name): This is the unique identifier or name of the gene being analyzed.
-
+  
 # cluster summary for cell types. 
 ```{r}
 generate_cluster_summary <- function(cl, percent_in_cluster, percent_out_cluster) {
@@ -337,11 +403,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -353,11 +420,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -369,11 +437,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -385,11 +454,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -401,11 +471,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -417,11 +488,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -433,11 +505,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -449,11 +522,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -465,11 +539,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -481,11 +556,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -497,11 +573,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -513,11 +590,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -529,11 +607,12 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
 cluster_defining_genes_output 
-result_df 
 ```
 
 
@@ -545,10 +624,11 @@ percent_out_cluster <- 0.5
 result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
 cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
 cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
 cat("cluster specific genes" ,"\n")
 cluster_specific_genes_output
 cat("cluster defininig genes" ,"\n")
-cluster_defining_genes_output 
-result_df 
+cluster_defining_genes_output
 ```
 
