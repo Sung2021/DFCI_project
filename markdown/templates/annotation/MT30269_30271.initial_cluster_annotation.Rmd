@@ -1,0 +1,902 @@
+---
+title: "Takeda NK project"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::readthedown: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+<style> 
+#TOC { 
+  top: 1%; 
+  opacity: 0.5; 
+} 
+#TOC:hover { 
+  opacity: 1; 
+} 
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE, warning=FALSE, message=FALSE, results = "markup")
+options(warn = F)
+
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+**Takeda TAK-676**
+
+This is a document for subset data of TN30269 and TN30271.
+
+The details regarding dataset are currently confidential.
+
+<br>
+<hr>
+<br>
+
+# Import preprocessed data
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+obj.srt = readRDS(paste0(dir,'rds/MT30269.30271.23.05.18.rds'))
+```
+
+**pre-processing information**
+<br>
+<br>
+
+UMI cutoff : 500~ 20000.
+
+mitochondrial cutoff : 25.
+
+other cutoffs : NA.
+
+doublet removal (scrublet) : Y.
+
+regression: ribosomal genes.
+
+---
+
+# UMAP 
+
+## UMAP by conditions
+
+
+### sample
+```{r, fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'orig.ident')
+```
+  
+### Treatment
+```{r, fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'sample')
+```
+
+```{r, fig.width=12, fig.height=4}
+DimPlot(obj.srt, group.by = 'sample', split.by = 'sample', ncol = 4)
+```
+  
+  
+### Clusters with the resolution of 0.8
+```{r,fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.8')
+```
+
+```{r,fig.width=7, fig.height=6, out.width='50%'}
+DimPlot(obj.srt, group.by = 'RNA_snn_res.0.8', label = T, label.box = T, label.size = 1) + theme(plot.title = element_blank()) 
+```
+
+
+## The number of cells in each sample 
+```{r}
+obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample')
+obj.srt@meta.data %>% select(orig.ident,sample) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample and treatment')
+obj.srt@meta.data %>% select(RNA_snn_res.0.8) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters')
+obj.srt@meta.data %>% select(RNA_snn_res.0.8, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment')
+obj.srt@meta.data %>% select(RNA_snn_res.0.8, orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment')
+obj.srt@meta.data %>% select(RNA_snn_res.0.8, orig.ident) %>% table() %>% data.frame() %>% tidyr::spread(orig.ident, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and sample')
+```
+
+  
+### Barplots.   
+```{r}
+df =obj.srt@meta.data %>% select(RNA_snn_res.0.8, orig.ident, sample) %>% table() %>% data.frame()
+df$Freq2 = df$Freq
+df[df$orig.ident == 'MT30271',]$Freq2 = -(df[df$orig.ident == 'MT30271',]$Freq2)
+custom_order <- rev(c(0:32))
+df$RNA_snn_res.0.8 = factor(df$RNA_snn_res.0.8, levels = custom_order)
+# levels(df$RNA_snn_res.0.2) 
+ggplot(df, aes(x = RNA_snn_res.0.8, y = Freq2, fill = orig.ident)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  ylim(c(-5000, 5000))
+```
+
+
+```{r}
+df= obj.srt@meta.data %>% select(RNA_snn_res.0.8, sample, orig.ident) %>% table() %>% data.frame()
+ggplot(df, aes(x = RNA_snn_res.0.8, y = Freq, fill = sample )) +
+  geom_bar(stat = "identity", position = "dodge", color="#2C3E50") + facet_wrap(.~orig.ident, ncol = 1) + theme_bw()
+
+```
+
+
+--- 
+# Annotation of cluster to cell type 
+```{r, echo=FALSE}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+all.markers = read.csv(paste0(dir,'data/MT30269.MT30271/mks/MT30269.30271.res.0.8.all.markers.23.07.24.csv'))
+## top marker genes table 
+mks= all.markers
+df=mks$cluster %>% table() %>% data.frame()
+df[,'top_genes'] =''
+for(i in 1:length(unique(mks$cluster))){
+  if(df[i,]$Freq >= 30){
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% head(30) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }else{
+    cl = unique(mks$cluster)[i]
+    df[i,'top_genes'] = mks %>% filter(cluster== cl) %>% arrange(desc(avg_log2FC)) %>% select(gene) %>% pull() %>% paste0(collapse = ',')
+  }
+}
+```
+  
+## Top 30 genes table
+```{r}
+DT::datatable(df, caption = 'Top 30 genes') 
+```
+
+
+
+# cell type marker 
+
+## Dendritic cells 
+CD83: CD83 is a marker associated with mature dendritic cells. CD83 is a maturation marker for dendritic cells. In the B cell lineage, CD83 is expressed especially on activated B cells and on light zone B cells during the germinal center (GC) reaction.  
+CD86: CD86 is an activation marker that is upregulated on dendritic cells upon activation.    
+CD123 (IL3RA): CD123 is a marker for plasmacytoid dendritic cells (pDCs), which produce type I interferons in response to viral infections.  
+HLA-DR: Human Leukocyte Antigen-DR (HLA-DR) is an MHC class II molecule expressed on the surface of dendritic cells involved in antigen presentation.  
+CD80 (B7-1) and CD86 (B7-2): CD80 and CD86 are co-stimulatory molecules expressed on dendritic cells upon activation, promoting T cell activation.  
+CD1c (BDCA-1): CD1c is another marker used to identify myeloid dendritic cells.  
+  
+## T cells 
+CD3E: CD3E is part of the CD3 complex and is expressed on all mature T cells, making it a universal T cell marker.
+
+CD4: CD4 is expressed on helper T cells (CD4+ T cells) and is important for their role in coordinating the immune response.
+
+CD8A: CD8A is expressed on cytotoxic T cells (CD8+ T cells) and is involved in their ability to recognize and kill infected cells.
+
+CD25 (IL2RA): CD25 is a marker for activated and regulatory T cells (Tregs), which play a role in immune regulation.
+
+CD45RA: CD45RA is a marker used to distinguish between naive T cells (CD45RA+) and memory T cells (CD45RO+).
+
+CD45RO: CD45RO is a marker for memory T cells, which have encountered antigens and become long-lived.
+
+CCR7: CCR7 is a chemokine receptor expressed on naive and central memory T cells, facilitating their migration to secondary lymphoid organs.
+
+CXCR3: CXCR3 is a chemokine receptor associated with effector T cells, particularly Th1 cells.
+
+CCR4: CCR4 is a chemokine receptor associated with T helper 2 (Th2) cells.
+
+FOXP3: FOXP3 is a transcription factor and a critical marker for regulatory T cells (Tregs).
+
+CD127 (IL7R): CD127 is expressed on T cells and can be used to distinguish between Tregs (CD127low) and conventional T cells (CD127high).
+
+CD28: CD28 is a co-stimulatory molecule expressed on most T cells and is involved in T cell activation.
+
+CD69: CD69 is an early activation marker that is upregulated on T cells upon activation.
+
+## Macrophage. 
+CD206 (MRC1): CD206, also known as the mannose receptor, is a marker for M2 macrophages and is involved in phagocytosis and endocytosis.  
+HLA-DR: Human Leukocyte Antigen-DR (HLA-DR) is an MHC class II molecule expressed on macrophages and antigen-presenting cells.  
+CD80 (B7-1): CD80 is another co-stimulatory molecule expressed on macrophages upon activation.  
+
+
+## Tumor cells  
+
+HER2 (Human Epidermal Growth Factor Receptor 2): Overexpression of HER2 is associated with several types of cancer, including breast cancer. HER2-targeted therapies, such as Herceptin, are used to treat HER2-positive breast cancer.
+
+EGFR (Epidermal Growth Factor Receptor): Mutations in EGFR are commonly found in lung cancer. Targeted therapies like Erlotinib and Gefitinib inhibit EGFR signaling in lung cancer cells.
+
+CEA (Carcinoembryonic Antigen): CEA is a marker associated with several cancers, including colorectal cancer. It can be measured in the blood and is used for cancer diagnosis and monitoring.
+
+Ki-67: Ki-67 is a marker of cell proliferation and is often used to assess the growth rate of tumor cells. It is expressed in a wide range of cancers.
+
+BRCA1 and BRCA2: Mutations in these genes are associated with an increased risk of breast and ovarian cancers. Genetic testing for BRCA mutations can help assess cancer risk.
+
+p53: Mutations in the p53 gene are common in many types of cancer. p53 is a tumor suppressor gene, and its inactivation can contribute to cancer development.
+
+CD44: CD44 is a cell adhesion molecule that is often overexpressed in cancer stem cells. It plays a role in tumor invasion and metastasis.
+
+## Neutrophil   
+
+CD66b (CEACAM8): CD66b is a cell surface protein and is one of the most specific markers for neutrophils.
+
+CD15 (FUT4): CD15, also known as FUT4, is another cell surface antigen expressed on neutrophils.
+
+CD16 (FCGR3A): CD16, or FcγRIIIA, is expressed on the surface of neutrophils and is involved in immune responses.
+
+CD11b (ITGAM): CD11b is a cell adhesion molecule that is highly expressed on the surface of neutrophils.
+
+CD63: CD63 is a tetraspanin protein associated with the granules of neutrophils. CD63 is an activation antigen in that its surface expression is upregulated from intracellular stores by stimulation 
+
+CD67 (L-selectin): CD67, or L-selectin, is another adhesion molecule that is found on neutrophils.
+
+CD177 (PRV-1): CD177 is a glycoprotein that is highly expressed on the surface of neutrophils.
+
+CXCR1 (IL8RA) and CXCR2 (IL8RB): These are receptors for the chemokine IL-8 (CXCL8) and are highly expressed on neutrophils.
+
+CD10 (NEP): CD10, or neutral endopeptidase, is expressed on neutrophils and other leukocytes.
+
+MPO (Myeloperoxidase): Myeloperoxidase is an enzyme found in the azurophilic granules of neutrophils.  
+
+## B cells 
+FOXP1 (Forkhead box-P1) is a winged-helix transcription factor that is differentially expressed in resting and activated B cells. 
+
+## Fibroblast  
+FSP1 (S100A4): Fibroblast-specific protein 1 (FSP1), also known as S100A4, is a widely used marker for fibroblasts.
+
+Fibroblast Activation Protein (FAP): FAP is a cell surface protein that is expressed by activated fibroblasts and is often used as a fibroblast marker.
+
+Collagen Type I (COL1A1 and COL1A2): Collagen is a major component of the extracellular matrix produced by fibroblasts, and genes encoding collagen type I (COL1A1 and COL1A2) are highly expressed in these cells.
+
+Vimentin (VIM): Vimentin is an intermediate filament protein expressed in fibroblasts and is often used as a marker for mesenchymal cells, including fibroblasts.
+
+Thy1 (CD90): Thy1 is a cell surface glycoprotein expressed on fibroblasts and is used as a marker for mesenchymal stromal cells, including fibroblasts.
+
+PDGFRα (Platelet-Derived Growth Factor Receptor Alpha): PDGFRα is a receptor protein expressed on the surface of fibroblasts, and it plays a role in their activation and proliferation.
+
+SMA (Alpha-Smooth Muscle Actin): While SMA is commonly associated with smooth muscle cells, it can also be expressed in activated fibroblasts, particularly myofibroblasts.
+
+DDR2 (Discoidin Domain Receptor 2): DDR2 is a receptor tyrosine kinase that is expressed in fibroblasts and is involved in cell-matrix interactions.
+
+POSTN (Periostin): Periostin is an extracellular matrix protein that is highly expressed in fibroblasts, especially in response to tissue injury or remodeling.
+
+COL3A1 (Collagen Type III): Like collagen type I, collagen type III (encoded by COL3A1) is a major component of the extracellular matrix produced by fibroblasts. 
+
+PTPRC: The leucocyte common antigen, protein tyrosine phosphatase receptor type C (PTPRC), also known as CD45, is a transmembrane glycoprotein, expressed on almost all haematopoietic cells except for mature erythrocytes, and is an essential regulator of T and B cell antigen receptor-mediated activation.  
+CD96 Gene :The protein encoded by this gene belongs to the immunoglobulin superfamily. It is a type I membrane protein. The protein may play a role in the adhesive interactions of activated T and NK cells during the late phase of the immune response. It may also function in antigen presentation.  
+
+## unclear genes 
+PECAM-1 is expressed on the cell surface of hematopoietic and immune cells including platelets, neutrophils, monocytes, megakaryocytes, natural killer cells (NK cells), and some T cells and on endothelial cells where it is localized to the borders of adjacent cells.  
+FN1 expression is closely related to tumor-infiltrating immune cells including macrophages, NK cells, Treg cells, CD8+ T cells, and DCs.   
+The IL-7 receptor is found in B cells and T cells as well as the early blood-forming cells that give rise to them.  
+CXCR4 is expressed by most cells, including hematopoietic and endothelial cells (ECs), neurons and stem cells (embryonic and adult). Increased levels of CXCR4 are present in cancer cells compared to the normal cells. CXCR4, the receptor for SDF-1α, is expressed by most T cell subsets.  
+
+# Cell type guess by common signature genes  
+
+## Cell type- signatures  
+
+| Category              | Genes                                        |
+|-----------------------|----------------------------------------------|
+| B                    | "CD79A", "IGHM", "CD79B", "MS4A1", "FOXP1" |
+| Macrophage           | "CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83", "MRC1", "CD80" |
+| DC                   | "ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1", "CD83", "CD86", "IL3RA" |
+| Fibroblast           | "COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL4A2", "VIM", "FAP" |
+| Tcell                | "TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS", "THEMIS", "IL7R", "TIGIT" |
+| NK                   | "GNLY", "KLRD1", "KLRB1", "KLRC1", "KLRG1", "GZMK", "GZMA", "NKG7" |
+| RBC                  | "HBB" |
+| Neutrophils          | "CEACAM8", "FUT4", "CD63" |
+| Epithelial           | "KRT18", "KRT8", "KRT18", "KRT19", "KRT7" |
+| Tumor                | "CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274", "EPCAM", "MKI67", "CD44" |
+| Monocyte             | "CD14", "CD68", "CCR2", "CSF1R" |
+| Interferon_response  | "IFIT3", "IFIT2", "ISG15", "IFIT1", "ISG20", "IFI6", "IFITM3", "IFI27" |
+
+
+```{r}
+# Create a list of categories and associated genes
+categories <- list(
+  B = c("CD79A", "IGHM", "CD79B", "MS4A1","FOXP1"),
+  Macrophage = c("CD14", "VSIG4", "C1QB", "C1QA", "APOE", "SPP1", "CD83","MRC1", "CD80"),
+  DC = c("ITGAX", "ITGAM", "CD1C", "FLT3", "HLA-DRA", "HLA-DRB1","CD83","CD86","IL3RA"),
+  Fibroblast = c("COL1A1", "COL1A2", "COL3A1", "COL4A1", "COL4A2", "VIM","FAP"),
+  Tcell = c("TCF7", "CD3G", "CD3E", "CD3D", "CD4", "CD28", "BCL11B", "CD8A", "CD8B", "ICOS","THEMIS","IL7R","TIGIT"),
+  NK = c("GNLY", "KLRD1", "KLRB1", "KLRC1","KLRG1","GZMK","GZMA","NKG7"),
+  RBC = c("HBB"),
+  Neutrophils = c("CEACAM8","FUT4","CD63"), 
+  Epithelial = c("KRT18", "KRT8", "KRT18", "KRT19","KRT7"),
+  Tumor = c("CTLA4", "HAVCR2", "EGFR", "KRAS", "MYC", "CD274", "EPCAM","MKI67", "CD44"),
+  Monocyte = c("CD14", "CD68", "CCR2", "CSF1R"),
+  Interferon_response = c("IFIT3","IFIT2","ISG15","IFIT1","ISG20","IFI6","IFITM3", "IFI27")
+)
+
+# Print the list
+print(categories)
+```
+
+## Read marker genes  
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+all.markers = read.csv(paste0(dir,'data/MT30269.MT30271/mks/MT30269.30271.res.0.8.all.markers.23.07.24.csv'), row.names = 1)
+all.markers %>% head()
+```
+
+**Understanding of the marker gene data **  
+p_val (p-value): This represents the statistical significance of the difference in gene expression or expression levels. The p-value indicates whether the observed difference between two groups is likely due to chance. A smaller p-value suggests a significant difference in gene expression.
+
+avg_log2FC (Average Log2 Fold Change): This column shows the average log2 fold change in gene expression or expression levels between two groups. Fold change represents the relative change between the two groups, and log2 transformation is often used for data analysis.
+
+pct.1 (Percentage in Group 1): This column indicates the proportion of this gene's expression or occurrence within Group 1. It tells you how frequently the gene appears in Group 1.
+
+pct.2 (Percentage in Group 2): Similar to pct.1, this column represents the proportion of the gene's expression or occurrence within Group 2.
+
+p_val_adj (Adjusted p-value): This is the adjusted p-value that takes into account multiple hypothesis testing. Performing multiple hypothesis tests can increase the chance of false positives, and adjusted p-values help mitigate this issue.
+
+cluster (Cluster Label): This column provides a label or identifier indicating which cluster or group the gene belongs to. It represents the results of clustering analysis, where genes are grouped based on their function or characteristics.
+
+gene (Gene Name): This is the unique identifier or name of the gene being analyzed.
+  
+# cluster summary for cell types. 
+
+**Define functions**  
+```{r}
+generate_cluster_summary <- function(cl, percent_in_cluster, percent_out_cluster) {
+  # Compute cluster-specific genes
+  cluster_specific_genes <- all.markers %>%
+    filter(cluster == cl) %>%
+    filter(pct.1 >= percent_in_cluster & pct.2 <= percent_out_cluster) %>%
+    top_n(50, avg_log2FC) %>%
+    dplyr::select(gene) %>%
+    pull()
+  
+  # Create a data frame for summary
+  df <- data.frame(
+    cluster = cl,
+    category = names(categories),
+    stringsAsFactors = FALSE
+  )
+  
+  # Create a function to perform the intersection and handle "NA"
+  intersect_with_na <- function(genes, category_genes) {
+    result <- intersect(genes, category_genes)
+    if (length(result) == 0) {
+      return("no matching genes")
+    } else {
+      return(paste(result, collapse = ", "))
+    }
+  }
+  
+  # Apply the intersection function and compute the number of matches
+  df$genes <- sapply(1:nrow(df), function(j) {
+    intersect_with_na(cluster_specific_genes, categories[[j]])
+  })
+  
+  # If needed, you can convert the result to a character vector
+  df$genes <- as.character(df$genes)
+  
+  # Return the summary data frame
+  return(df)
+}
+
+cluster_specific_genes = function(cl, percent_in_cluster, percent_out_cluster) {
+  # Compute cluster-specific genes
+  cluster_specific_genes <- all.markers %>%
+    filter(cluster == cl) %>%
+    filter(pct.1 >= percent_in_cluster & pct.2 <= percent_out_cluster) %>%
+    top_n(50, avg_log2FC) %>%
+    dplyr::select(gene) %>%
+    pull()
+  return(cluster_specific_genes)
+}
+
+cluster_defining_genes = function(cl) {
+  # Compute cluster-specific genes
+  cluster_specific_genes <- all.markers %>%
+    filter(cluster == cl) %>%
+    
+    top_n(50, avg_log2FC) %>%
+    dplyr::select(gene) %>%
+    pull()
+  return(cluster_specific_genes)
+}
+```
+   
+**For exclusively-expressed gene filtering **   
+percent_in_cluster : higher than 60%  
+percent_out_cluster : lower than 90% from all other clusters  
+
+cluster_specific_genes are genes the expressed exclusively genes in the cluster.  
+cluster_defining_genes are genes the expressed relatively highly in the cluster . Sometimes other clusters express those genes as well.  
+
+```{r}
+percent_in_cluster <- 0.6
+percent_out_cluster <- 0.9
+```
+
+
+## cluster 0 :
+```{r}
+i <- 0
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 1 :
+```{r}
+i <- 1
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 2 :
+```{r}
+i <- 2
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 3 :
+```{r}
+i <- 3
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 4 :
+```{r}
+i <- 4
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 5 :
+```{r}
+i <- 5
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 6 :
+```{r}
+i <- 6
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 7 :
+```{r}
+i <- 7
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 8 :
+```{r}
+i <- 8
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 9 :
+```{r}
+i <- 9
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 10 :
+```{r}
+i <- 10
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 11 :
+```{r}
+i <- 11
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 12 :
+```{r}
+i <- 12
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output 
+```
+
+
+## cluster 13 :
+```{r}
+i <- 13
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+## cluster 14 :
+```{r}
+i <- 14
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+## cluster 15 :
+```{r}
+i <- 15
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 16 :
+```{r}
+i <- 16
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 17 :
+```{r}
+i <- 17
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 18 :
+```{r}
+i <- 18
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 19 :
+```{r}
+i <- 19
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 20 :
+```{r}
+i <- 20
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 21 :
+```{r}
+i <- 21
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 22 :
+```{r}
+i <- 22
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 23 :
+```{r}
+i <- 23
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 24 :
+```{r}
+i <- 24
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 25 :
+```{r}
+i <- 25
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 26 :
+```{r}
+i <- 26
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 27 :
+```{r}
+i <- 27
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 28 :
+```{r}
+i <- 28
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 29 :
+```{r}
+i <- 29
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 30 :
+```{r}
+i <- 30
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 31 :
+```{r}
+i <- 31
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
+
+
+## cluster 32 :
+```{r}
+i <- 32
+result_df <- generate_cluster_summary(i, percent_in_cluster, percent_out_cluster)
+cluster_specific_genes_output= cluster_specific_genes(i, percent_in_cluster, percent_out_cluster)
+cluster_defining_genes_output= cluster_defining_genes(i)
+ 
+result_df 
+cat("cluster specific genes" ,"\n")
+cluster_specific_genes_output
+cat("cluster defininig genes" ,"\n")
+cluster_defining_genes_output
+```
