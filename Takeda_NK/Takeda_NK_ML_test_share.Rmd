@@ -1,0 +1,394 @@
+---
+title: "Takeda NK: Additional NK cells separation"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output: 
+  html_document:
+    theme: flatly
+    toc: yes
+    toc_float:
+      collapsed: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = "markup")
+options(warn = F)
+
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+library(tidymodels)
+library(Seurat)
+library(caret)
+```
+
+
+# Takeda NK data  
+
+Data to use: Takeda.NK.30293.30298.NK_only.23.09.28.rds   
+
+```{r}
+dir= "~/Desktop/DF/DFCI_Paweletz/2023_Takeda_NK/"
+obj.srt= readRDS(paste0(dir, "rds/Takeda.NK.30293.30298.NK_only.23.09.28.rds"))
+```
+
+
+## Variable features   
+
+Genes to use : Variable features   
+```{r}
+# VariableFeatures(obj.srt) %>% head()
+cat("The number of variable features is ", length(VariableFeatures(obj.srt)), "\n")
+```
+
+```{r}
+# Replace "-" with "_"
+VariableFeatures(obj.srt) <- gsub("-", "_", VariableFeatures(obj.srt))
+```
+
+
+## Treatment selection   
+Samples to select : CTL and NKC  
+
+
+```{r}
+selected_treatments = c("CTL","NKC")
+cells = obj.srt@meta.data[obj.srt@meta.data$sample %in% selected_treatments,] %>% rownames()
+df= obj.srt@meta.data %>% filter(sample %in% selected_treatments) %>% select(c("orig.ident","sample"))
+df$sample =factor(df$sample, levels = c("CTL","NKC"))
+df %>% select(sample) %>% table()
+# df
+```
+
+
+## Expression Matrix   
+
+Features : Variable features (3000)   
+Gene expression : Seurat-based normalized data not scaled (scaling will be done later)   
+Cells : 1247 NK Cells from CTL and NKC samples   
+
+```{r, echo=FALSE}
+exp.mtx= data.frame(obj.srt@assays$RNA@data, check.names = F)[VariableFeatures(obj.srt),cells] %>% t() %>% data.frame(check.names = F)
+# exp.mtx %>% dim()
+```
+
+
+
+```{r, echo=FALSE}
+set.seed(1234)
+train_prop = 0.75
+cell_split= initial_split(df, prop = train_prop)
+cell_training=training(cell_split)
+cell_test=testing(cell_split)
+```
+
+
+```{r, eval=FALSE}
+cell_training
+exp.mtx
+```
+
+
+```{r,echo=FALSE}
+train_set <- merge(cell_training, exp.mtx, by = "row.names")
+#train_set[1:3,1:8]
+test_set <- merge(cell_test, exp.mtx, by = "row.names")
+#test_set[1:3,1:8]
+```
+
+
+
+# Data preprocessing   
+
+   
+```{r, echo=FALSE}
+# Merge train and test set  
+tmp = rbind(train_set,test_set)
+#tmp %>% dim()
+```
+
+## Preprocessing data 
+
+Input : expression matrix   
+
+Processing  
+
+* Center: Making the mean of each variable 0   
+* Scale: Dividing each variable by its sd   
+* YeoJohnson : Transformation to handle non-normality in the data (used for variables that may have non-constant variance or skewness)  
+* nzv : Removes near-zero variance variables   
+
+
+```{r}
+# Use numeric values only  
+#all_data = tmp[,4:ncol(tmp)]
+all_data = exp.mtx
+# Pre-process the expression matrix    
+all_data = predict(preProcess(all_data, method = c("center", "scale", "YeoJohnson", "nzv")),all_data)
+
+all_data$sample = tmp$sample
+all_data$sample =factor(all_data$sample, levels = c("CTL","NKC"))
+
+```
+
+
+## Explore dataset   
+
+* tSNE   
+(Rtsne package)
+```{r, eval=FALSE}
+set.seed(94512)   
+tsne <- Rtsne::Rtsne(all_data[,colnames(all_data)!='sample'], dims = 2, perplexity=15, verbose=TRUE, max_iter = 500)
+# tsne %>% saveRDS(paste0(dir,"rds/ML.23.10.13.tsne.rds"))
+```
+
+
+```{r}
+tsne = readRDS(paste0(dir,"rds/ML.23.10.13.tsne.rds"))
+```
+
+* tSNE colored by sample  
+```{r}
+# tsne$Y has tSNE X and Y information  
+tsne.df = as.data.frame(tsne$Y)
+rownames(tsne.df) = rownames(all_data)
+colnames(tsne.df) = c('tsne.1', 'tsne.2')
+
+tsne.df$sample = all_data$sample
+
+ggplot(tsne.df, aes(x=tsne.1, y=tsne.2, color=sample))+
+  geom_point(size=0.5)+
+  theme_bw()
+```
+
+
+* Kmeans clustering on tSNE      
+
+```{r, eval=FALSE}
+# 데이터에서 'sample' 열을 제외
+data_for_clustering <- all_data[, colnames(all_data) != 'sample']
+
+# kmeans 클러스터링 수행 (k는 클러스터의 개수)
+k <- 6  
+kmeans_result <- kmeans(data_for_clustering, centers = k, nstart = 5)
+
+# 클러스터링 결과 확인
+#kmeans_result$cluster  # 클러스터 할당 결과
+
+# 클러스터 중심 확인
+#kmeans_result$centers  # 클러스터 중심 좌표
+kmeans_result %>% saveRDS(paste0(dir,"rds/ML.23.10.13.kmeans_6.rds"))
+
+```
+
+```{r}
+kmeans_result =readRDS(paste0(dir,"rds/ML.23.10.13.kmeans_6.rds"))
+```
+
+
+Number of Clusters : 6    
+
+```{r}
+clustered_tsne_data <- data.frame(Cluster = as.factor(kmeans_result$cluster), tsne.df)
+# 클러스터링 결과와 t-SNE 결과를 플롯
+ggplot(clustered_tsne_data, aes(tsne.1,tsne.2, color = Cluster)) +
+  geom_point(size=0.5) +
+  labs(title = "t-SNE Clustering") +
+  theme_minimal()
+
+ggplot(clustered_tsne_data, aes(tsne.1,tsne.2, color = Cluster)) +
+  geom_point(size=0.5) +
+  labs(title = "t-SNE Clustering") +
+  theme_minimal() +facet_wrap(.~Cluster, ncol = 3)
+```
+
+
+From 6 clusters from tSNE   
+endogenous_NK cells : 1,2,3  
+additional_NK cells : 4,5,6   
+
+
+
+```{r}
+scaled_data= all_data[names(kmeans_result$cluster),]
+scaled_data$cluster = kmeans_result$cluster 
+scaled_data$cluster = factor(scaled_data$cluster)
+levels(scaled_data$cluster) = c(rep("endogenous_NK",3), rep("additional_NK",3))
+
+# Filter the data for the two clusters
+cols=colnames(scaled_data)[!(colnames(scaled_data) %in% c('cluster','sample'))]
+endogenous_NK_data <- scaled_data[scaled_data$cluster == "endogenous_NK", ][,colnames(scaled_data)[!(colnames(scaled_data) %in% c('cluster','sample'))]]
+additional_NK_data <- scaled_data[scaled_data$cluster == "additional_NK", ][,colnames(scaled_data)[!(colnames(scaled_data) %in% c('cluster','sample'))]]
+
+```
+
+
+```{r, eval=FALSE}
+differentially_expressed_genes <- data.frame(Gene = character(0), P_Value = numeric(0), MeanDifference = numeric(0))
+
+for (gene in cols) {
+  endo_mean <- mean(endogenous_NK_data[, gene])
+  add_mean <- mean(additional_NK_data[, gene])
+  p_value <- wilcox.test(endogenous_NK_data[, gene], additional_NK_data[, gene])$p.value
+  
+  if (p_value < 0.05) {  # You can adjust the significance threshold (e.g., 0.05)
+    mean_difference <- endo_mean - add_mean
+    differentially_expressed_genes <- rbind(differentially_expressed_genes, 
+                                            data.frame(Gene = gene, P_Value = p_value, MeanDifference = mean_difference))
+  }
+}
+
+```
+
+```{r, eval=FALSE}
+differentially_expressed_genes %>% arrange(MeanDifference) %>% head(10)
+differentially_expressed_genes %>% filter(MeanDifference > 0.1) %>% arrange(P_Value)
+differentially_expressed_genes %>% filter(MeanDifference < - 0.5) %>% arrange(P_Value)
+
+
+```
+
+
+```{r, eval=FALSE}
+differentially_expressed_genes %>% ggplot(aes(MeanDifference)) + geom_density()
+```
+
+
+```{r, eval=FALSE}
+differentially_expressed_genes$MeanDifference %>% summary()
+```
+
+
+* Extract the NK cell IDs     
+```{r}
+endogenous_NK_rows <- scaled_data[scaled_data$cluster == "endogenous_NK", c('cluster','sample')] %>% rownames()
+additional_NK_rows <- scaled_data[scaled_data$cluster == "additional_NK", c('cluster','sample')] %>% rownames()
+```
+
+
+
+# Color two types of NK cells in the original NK cell UMAP   
+```{r}
+obj.srt = readRDS(paste0(dir, "rds/Takeda.NK.30293.30298.NK_only.23.09.28.rds"))
+```
+
+
+```{r}
+obj.srt@meta.data$NK = ""
+obj.srt@meta.data[endogenous_NK_rows,]$NK = "Endogenous_NK from CTL and NKC"
+obj.srt@meta.data[additional_NK_rows,]$NK = "Additional_NK from NKC"
+```
+
+
+```{r,fig.width=10, fig.height=6}
+DimPlot(obj.srt, group.by = "NK", cols = c("grey","red","blue"))
+```
+
+
+```{r,fig.width=12, fig.height=9}
+DimPlot(obj.srt, group.by = "NK", cols = c("grey","red","blue"), split.by = "sample", ncol = 2)
+```
+
+
+# Check the expression of NK cell signature genes   
+```{r,fig.width=10, fig.height=9}
+genes = c("NKG7", "KLRC1", "KLRD1", "KLRB1")
+FeaturePlot(obj.srt, genes, pt.size = 0.2)
+```
+
+```{r,fig.width=9, fig.height=12, out.width="70%"}
+VlnPlot(obj.srt, features = genes, group.by = "NK", stack = T, flip = T)
+```
+
+
+# Check the expression of Granzyme genes      
+```{r, fig.width=18, fig.height=9}
+genes = rownames(obj.srt)[grepl("GZM", rownames(obj.srt))]
+FeaturePlot(obj.srt, genes, pt.size = 0.2, ncol = 3)
+```
+
+```{r,fig.width=9, fig.height=12, out.width="70%"}
+VlnPlot(obj.srt, features = genes, group.by = "NK", stack = T, flip = T)
+```
+
+
+# Find Differentially Expressed genes from two types of NK cells   
+
+```{r}
+# Find markers between NKs 
+g2 = "Additional_NK from NKC"
+g1 = "Endogenous_NK from CTL and NKC"
+logfc=log2(1)
+Idents(obj.srt) = 'NK'
+  logfc=log2(1)
+  mks =FindMarkers(obj.srt, ident.1 = g2, ident.2 = g1, 
+                   logfc.threshold = logfc)
+  pval=0.05
+  fc=1.2
+  mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                                 ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  mks =mks %>% mutate(labels= ifelse(DE == 'UP', gene, ifelse(DE=='DN',gene,'other')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  mks$gene <- rownames(mks)
+```
+
+## Volcano plot 
+
+UP : UP regulated genes in Additional NK cells     
+DN : DOWN regulated genes in Additional NK cells     
+```{r, fig.width=12, fig.height=10}
+mks =mks %>% mutate(labels= ifelse(DE == 'UP', gene, ifelse(DE=='DN',gene,'')))
+mks =mks %>% arrange(desc(avg_log2FC))
+mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c("red",'blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+  geom_text(aes(label = labels), size = 3, show.legend = FALSE, hjust = 0, nudge_x = 0.03) +
+      ggeasy::easy_center_title() ## to center title
+```
+
+
+## UP regulated genes   
+```{r}
+mks[mks$DE=="UP",]$gene 
+```
+
+
+## DOWN regulated genes   
+```{r}
+mks[mks$DE=="DN",]$gene
+```
+
+
+## Download DEG file   
+```{r}
+DT::datatable(mks, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+<br>
+<span style='font-size: 200%;'>
+**Observations**   
+
+Additional NK cells are healthy and functional, as evidenced by the expression of well-known NK cell signature genes. In contrast, endogenous NK cells primarily express ribosomal protein genes and exhibit lower levels of NK signature gene expression.   
+<br>
+Consequently, the functionality of the additional NK cells is superior to that of the endogenous NK cells, which could contribute to a more robust response to the STING agonist.
+</span>
+<br>
+<br>
+
+
+# Next step:  
+
+Extract the NK cell IDs from TAK and COM samples   
+Obtain the full NK cell IDs of all 4 samples  
+
+<br>
+<br>
+
