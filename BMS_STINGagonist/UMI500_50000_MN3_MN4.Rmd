@@ -1,0 +1,453 @@
+---
+title: "NK project: UMI 500~ 50000 MN3~MN4"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+```{r setup, include=FALSE, echo=T}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+Report   
+   
+This is the initial analysis report of of MN3~MN4 merged dataset.
+
+```{r libraries, echo=FALSE}
+# Load required libraries
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+* Import data  
+Subseted UMI 500-50000, mitochondrial content cutoff 25%, singlet only     
+ 
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.rds')))
+```
+
+* Subset data  
+
+MN3,MN4 subsetting 
+```{r, eval=FALSE}
+# Happen only one time 
+obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 3:4))
+
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,('rds/MN3_MN4_subset.500.50000.25.singlet.23.09.28.rds')))
+```
+
+# Import MN3~MN4 merged data  
+
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN3_MN4_subset.500.50000.25.singlet.23.09.28.rds')))
+```
+
+Snapshot of data   
+```{r}
+obj.srt@meta.data[1:3, 1:4]
+```
+
+
+# Overview of subset-data  
+
+## Summary of data
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 50000 
+
+mitochondrial cutoff : 25 
+
+other cutoffs : NA 
+
+doublet removal (scrublet) : Y 
+
+Sample: MN3, MN4   
+
+
+
+UMI and mitochondrial content   
+```{r}
+obj.srt@meta.data[,c('nCount_RNA','percent.mt')] %>% summary() 
+```
+
+Number of cells by sample   
+```{r}
+obj.srt@meta.data$orig.ident %>% table() %>% data.frame()
+```
+
+    
+```{r, eval=FALSE}
+cat("UMI and mitocondrial content % distribution ", "\n")
+df= obj.srt@meta.data %>%
+  group_by(orig.ident) %>%
+  summarise(
+    Mean_nCount_RNA = mean(nCount_RNA),
+    Median_nCount_RNA = median(nCount_RNA),
+    SD_nCount_RNA = sd(nCount_RNA),
+    Q1_nCount_RNA = quantile(nCount_RNA, 0.25),  # 1st quantile
+    Q3_nCount_RNA = quantile(nCount_RNA, 0.75),  # 3rd quantile
+    Mean_percent_mt = mean(percent.mt),
+    Median_percent_mt = median(percent.mt),
+    SD_percent_mt = sd(percent.mt),
+    Q1_percent_mt = quantile(percent.mt, 0.25),  # 1st quantile
+    Q3_percent_mt = quantile(percent.mt, 0.75)  # 3rd quantile
+  )
+df %>% gt::gt()
+```
+
+
+```{r, eval=FALSE}
+# Density plot of UMI counts  
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
+```
+
+
+## Conditions of samples   
+
+
+```{r}
+# Create a data frame from the given data
+data <- data.frame(
+  Sample = c("MN3", "MN4"),
+  HUVEC = c("HUVEC", "HUVEC"),
+  Fibroblast = c("hLFB", "hLFB"),
+  SCLC_line = c("CORL47", "CORL47"),
+  cGAMP = c("N", "Y"),
+  monocytes = c("Y", "Y"),
+  NK_cell = c("Y", "Y")
+)
+
+# Set the row names to the "RowNames" column
+rownames(data) <- data$RowNames
+
+# Print the data frame
+data %>% gt::gt()
+
+```
+
+
+# UMAP  
+
+## Samples on UMAP 
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "orig.ident")
+```
+
+
+## Samples on UMAP in split mode  
+```{r, fig.width=12, fig.height=6}
+DimPlot(obj.srt, group.by = "orig.ident", split.by = "orig.ident",ncol = 2)
+```
+
+
+## Annotation on UMAP  
+
+This annotation was done in merged dataset (as discussed).  
+
+
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "annotation")
+DimPlot(obj.srt, group.by = "annotation", label = T, label.size = 3)
+```
+
+```{r}
+obj.srt@meta.data[,"annotation"] %>% table() %>% data.frame() %>% gt::gt()
+obj.srt@meta.data[,c("annotation","orig.ident")] %>% table() %>% data.frame() %>% tidyr::spread(orig.ident,Freq) %>% gt::gt()
+```
+
+
+```{r}
+res="annotation"
+obj.srt@meta.data %>% ggplot(aes(!!sym(res), fill=orig.ident)) + geom_bar(position = 'fill') +theme_minimal()
+```
+
+```{r}
+obj.srt@meta.data %>%
+  group_by(!!sym(res), orig.ident) %>%
+  summarise(count = n()) %>%
+  group_by(!!sym(res)) %>%
+  mutate(percent = count / sum(count) * 100) %>%
+  ggplot(aes(x = !!sym(res), y = percent, fill = orig.ident)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percent)), 
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE, size=3) +
+  labs(y = "Percentage") +
+  theme_minimal()
+
+```
+
+
+
+## Annotation on UMAP2   
+
+```{r}
+
+cell_types= unique(obj.srt@meta.data$annotation) 
+samples = unique(obj.srt@meta.data$orig.ident)
+
+
+color_sample_in_celltype = function(obj.srt, celltype){
+  obj.srt@meta.data$color = "other"
+  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",3)) %>% rownames()
+  rows2= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",4)) %>% rownames()
+  obj.srt@meta.data[rows1,]$color= paste0("MN",3)
+  obj.srt@meta.data[rows2,]$color= paste0("MN",4)
+  obj.srt@meta.data$color = factor(obj.srt@meta.data$color)
+  
+  obj.srt@meta.data$color %>% table()
+  umap= obj.srt@reductions$umap@cell.embeddings %>% data.frame()
+  p=umap %>% ggplot(aes(UMAP_1, UMAP_2, color=obj.srt@meta.data$color)) + geom_point(size=0.1) + 
+    scale_color_manual(values = c("red","blue","#F2F4F4")) +theme_classic() + 
+    theme(legend.title = element_blank()) +
+    guides(colour = guide_legend(override.aes = list(size=3))) +ggtitle(celltype)
+  print(p)
+}
+
+```
+
+
+```{r, fig.width=10, fig.height=8}
+color_sample_in_celltype(obj.srt, celltype = cell_types[1])
+color_sample_in_celltype(obj.srt, celltype = cell_types[2])
+color_sample_in_celltype(obj.srt, celltype = cell_types[3])
+color_sample_in_celltype(obj.srt, celltype = cell_types[4])
+color_sample_in_celltype(obj.srt, celltype = cell_types[5])
+
+```
+
+
+
+## Clusters on UMAP 
+
+### Resolution of 0.2 
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.2")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.2", label = T, label.size = 3)
+```
+
+
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res)] %>% table() %>% data.frame()
+```
+
+
+```{r, eval=F}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+
+### Resolution of 0.4 
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.4")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.4", label = T, label.size = 3)
+```
+
+
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res)] %>% table() %>% data.frame()
+```
+
+
+```{r, eval=F}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+### Resolution of 0.8 
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.8")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.8", label = T, label.size = 3)
+```
+
+
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res)] %>% table() %>% data.frame()
+```
+
+```{r, eval=F}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+### Resolution of 1 
+```{r, fig.width=10, fig.height=8}
+DimPlot(obj.srt, group.by = "RNA_snn_res.1")
+DimPlot(obj.srt, group.by = "RNA_snn_res.1", label = T, label.size = 3)
+```
+
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res)] %>% table() %>% data.frame()
+```
+
+
+```{r, eval=F}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+```{r, eval=FALSE}
+# Marker gene Identification 
+find_and_save_markers <- function(obj.srt, cluster_id, logfc_threshold = 1.2, 
+                                  test_method = 'wilcox', min_percent = 0.25) {
+  Idents(obj.srt) = cluster_id
+  all.markers = FindAllMarkers(obj.srt, logfc.threshold = log2(logfc_threshold), 
+                               only.pos = TRUE, 
+                               test.use = test_method, min.pct = min_percent)
+  return(all.markers)
+}
+# apply:
+
+resolution_values <- c(0.2, 0.4, 0.8, 1)
+
+# Loop through each resolution value
+for (resolution_number in resolution_values) {
+  # Construct the resolution name
+  res <- paste0("RNA_snn_res.", resolution_number)
+  all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res, 
+                                   logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25)
+  output_file = paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv")
+  write.csv(all.markers, file = output_file, row.names = T)
+}
+```
+
+
+# Markers for clusters    
+
+
+## res 0.2  
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 0.4  
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 0.8  
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 1  
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+
+# Next Step    
+
+Please provide guidance on the next steps for the MN3 vs MN4 project.   
+
+
+<br>
