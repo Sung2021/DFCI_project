@@ -1,5 +1,5 @@
 ---
-title: "NK project: UMI 500~ 50000 MN1~MN2"
+title: "NK project: UMI 500~ 50000 MN4,MN2"
 date: "`r format(Sys.Date())`"
 output:  
   rmdformats::robobook: 
@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
 ```
 Report   
    
-This is the initial analysis report of of MN1~MN2 merged dataset.
+This is the initial analysis report of of MN4,MN2 merged dataset.
 
 ```{r libraries, echo=FALSE}
 # Load required libraries
@@ -34,10 +34,10 @@ obj.srt = readRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.
 
 * Subset data  
 
-MN1,MN2 subsetting 
+MN4,MN2 subsetting 
 ```{r, eval=FALSE}
 # Happen only one time 
-obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 1:2))
+obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", c(4,2)))
 
 ## perform default analysis
 perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
@@ -70,15 +70,15 @@ perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30,
 
 # apply
 obj.srt <- perform_default_analysis(obj.srt)
-obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
+obj.srt %>% saveRDS(paste0(dir,('rds/MN4_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
 ```
 
-# Import MN1~MN2 merged data  
+# Import MN4,MN2 merged data  
 
 ```{r}
 dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
 ## import data
-obj.srt = readRDS(paste0(dir,('rds/MN1_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
+obj.srt = readRDS(paste0(dir,('rds/MN4_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
 ```
 
 Snapshot of data   
@@ -117,7 +117,7 @@ obj.srt@meta.data$orig.ident %>% table() %>% data.frame()
 ```
 
     
-```{r, eval=T}
+```{r, eval=FALSE}
 cat("UMI and mitocondrial content % distribution ", "\n")
 df= obj.srt@meta.data %>%
   group_by(orig.ident) %>%
@@ -137,8 +137,7 @@ df %>% gt::gt()
 ```
 
 
-Note: MN1 and MN2 exhibit significantly distinct UMI number distributions.     
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 # Density plot of UMI counts  
 obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
 ```
@@ -150,12 +149,12 @@ obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
 ```{r}
 # Create a data frame from the given data
 data <- data.frame(
-  Sample = c("MN1", "MN2"),
+  Sample = c("MN4", "MN2"),
   HUVEC = c("HUVEC", "HUVEC"),
   Fibroblast = c("hLFB", "hLFB"),
   SCLC_line = c("CORL47", "CORL47"),
-  cGAMP = c("N", "Y"),
-  monocytes = c("N", "N"),
+  cGAMP = c("Y", "Y"),
+  monocytes = c("Y", "N"),
   NK_cell = c("Y", "Y")
 )
 
@@ -209,9 +208,9 @@ samples = unique(obj.srt@meta.data$orig.ident)
 
 color_sample_in_celltype = function(obj.srt, celltype){
   obj.srt@meta.data$color = "other"
-  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",1)) %>% rownames()
+  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",4)) %>% rownames()
   rows2= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",2)) %>% rownames()
-  obj.srt@meta.data[rows1,]$color= paste0("MN",1)
+  obj.srt@meta.data[rows1,]$color= paste0("MN",4)
   obj.srt@meta.data[rows2,]$color= paste0("MN",2)
   obj.srt@meta.data$color = factor(obj.srt@meta.data$color)
   
@@ -223,6 +222,23 @@ color_sample_in_celltype = function(obj.srt, celltype){
     guides(colour = guide_legend(override.aes = list(size=3))) +ggtitle(celltype)
   print(p)
 }
+color_sample_in_celltype_Monocytes = function(obj.srt, celltype){
+  obj.srt@meta.data$color = "other"
+  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",4)) %>% rownames()
+  rows2= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",2)) %>% rownames()
+  obj.srt@meta.data[rows1,]$color= paste0("MN",4)
+  #obj.srt@meta.data[rows2,]$color= paste0("MN",2)
+  obj.srt@meta.data$color = factor(obj.srt@meta.data$color)
+  
+  obj.srt@meta.data$color %>% table()
+  umap= obj.srt@reductions$umap@cell.embeddings %>% data.frame()
+  p=umap %>% ggplot(aes(UMAP_1, UMAP_2, color=obj.srt@meta.data$color)) + geom_point(size=0.1) + 
+    scale_color_manual(values = c("blue","#F2F4F4")) +theme_classic() + 
+    theme(legend.title = element_blank()) +
+    guides(colour = guide_legend(override.aes = list(size=3))) +ggtitle(celltype)
+  print(p)
+}
+
 
 ```
 
@@ -232,7 +248,7 @@ color_sample_in_celltype(obj.srt, celltype = cell_types[1])
 color_sample_in_celltype(obj.srt, celltype = cell_types[2])
 color_sample_in_celltype(obj.srt, celltype = cell_types[3])
 color_sample_in_celltype(obj.srt, celltype = cell_types[4])
-#color_sample_in_celltype(obj.srt, celltype = cell_types[5])
+color_sample_in_celltype_Monocytes(obj.srt, celltype = cell_types[5])
 
 ```
 
@@ -350,7 +366,7 @@ for (resolution_number in resolution_values) {
   res <- paste0("RNA_snn_res.", resolution_number)
   all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res, 
                                    logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25)
-  output_file = paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv")
+  output_file = paste0(dir,"data/UMI500_50000/MN4_MN2_", res, ".markers.csv")
   write.csv(all.markers, file = output_file, row.names = T)
 }
 ```
@@ -369,7 +385,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN4_MN2_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -385,7 +401,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN4_MN2_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -401,7 +417,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN4_MN2_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -417,12 +433,9 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN4_MN2_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
 
 
-# Next step   
-
-Next step will be here..   

@@ -1,0 +1,688 @@
+---
+title: "NK project: UMI 500~ 50000 MN3~MN4"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+```{r setup, include=FALSE, echo=T}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+Report   
+   
+This is the initial analysis report of of MN3~MN4 merged dataset.
+
+```{r libraries, echo=FALSE}
+# Load required libraries
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+* Import data  
+Subseted UMI 500-50000, mitochondrial content cutoff 25%, singlet only     
+ 
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.rds')))
+```
+
+* Subset data  
+
+MN3,MN4 subsetting 
+```{r, eval=FALSE}
+# Happen only one time 
+obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 3:4))
+
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,('rds/MN3_MN4_subset.500.50000.25.singlet.23.09.28.rds')))
+```
+
+# Import MN3~MN4 merged data  
+
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN3_MN4_subset.500.50000.25.singlet.23.09.28.rds')))
+```
+
+Snapshot of data   
+```{r}
+obj.srt@meta.data[1:3, 1:4]
+```
+
+
+# Overview of subset-data  
+
+## Summary of data
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 50000 
+
+mitochondrial cutoff : 25 
+
+other cutoffs : NA 
+
+doublet removal (scrublet) : Y 
+
+Sample: MN3, MN4   
+
+
+
+UMI and mitochondrial content   
+```{r}
+obj.srt@meta.data[,c('nCount_RNA','percent.mt')] %>% summary() 
+```
+
+Number of cells by sample   
+```{r}
+obj.srt@meta.data$orig.ident %>% table() %>% data.frame()
+```
+
+    
+```{r, eval=FALSE}
+cat("UMI and mitocondrial content % distribution ", "\n")
+df= obj.srt@meta.data %>%
+  group_by(orig.ident) %>%
+  summarise(
+    Mean_nCount_RNA = mean(nCount_RNA),
+    Median_nCount_RNA = median(nCount_RNA),
+    SD_nCount_RNA = sd(nCount_RNA),
+    Q1_nCount_RNA = quantile(nCount_RNA, 0.25),  # 1st quantile
+    Q3_nCount_RNA = quantile(nCount_RNA, 0.75),  # 3rd quantile
+    Mean_percent_mt = mean(percent.mt),
+    Median_percent_mt = median(percent.mt),
+    SD_percent_mt = sd(percent.mt),
+    Q1_percent_mt = quantile(percent.mt, 0.25),  # 1st quantile
+    Q3_percent_mt = quantile(percent.mt, 0.75)  # 3rd quantile
+  )
+df %>% gt::gt()
+```
+
+
+```{r, eval=FALSE}
+# Density plot of UMI counts  
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
+```
+
+
+## Conditions of samples   
+
+
+```{r}
+# Create a data frame from the given data
+data <- data.frame(
+  Sample = c("MN3", "MN4"),
+  HUVEC = c("HUVEC", "HUVEC"),
+  Fibroblast = c("hLFB", "hLFB"),
+  SCLC_line = c("CORL47", "CORL47"),
+  cGAMP = c("N", "Y"),
+  monocytes = c("Y", "Y"),
+  NK_cell = c("Y", "Y")
+)
+
+# Set the row names to the "RowNames" column
+rownames(data) <- data$RowNames
+
+# Print the data frame
+data %>% gt::gt()
+
+```
+
+
+# UMAP  
+
+## Samples on UMAP 
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "orig.ident")
+```
+
+
+## Samples on UMAP in split mode  
+```{r, fig.width=12, fig.height=6}
+DimPlot(obj.srt, group.by = "orig.ident", split.by = "orig.ident",ncol = 2)
+```
+
+
+## Annotation on UMAP  
+
+This annotation was done in merged dataset (as discussed).  
+
+
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "annotation")
+DimPlot(obj.srt, group.by = "annotation", label = T, label.size = 3)
+```
+
+```{r}
+obj.srt@meta.data[,"annotation"] %>% table() %>% data.frame() %>% gt::gt()
+obj.srt@meta.data[,c("annotation","orig.ident")] %>% table() %>% data.frame() %>% tidyr::spread(orig.ident,Freq) %>% gt::gt()
+```
+
+
+
+## Annotation on UMAP2   
+
+```{r}
+
+cell_types= unique(obj.srt@meta.data$annotation) 
+samples = unique(obj.srt@meta.data$orig.ident)
+
+
+color_sample_in_celltype = function(obj.srt, celltype){
+  obj.srt@meta.data$color = "other"
+  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",3)) %>% rownames()
+  rows2= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",4)) %>% rownames()
+  obj.srt@meta.data[rows1,]$color= paste0("MN",3)
+  obj.srt@meta.data[rows2,]$color= paste0("MN",4)
+  obj.srt@meta.data$color = factor(obj.srt@meta.data$color)
+  
+  obj.srt@meta.data$color %>% table()
+  umap= obj.srt@reductions$umap@cell.embeddings %>% data.frame()
+  p=umap %>% ggplot(aes(UMAP_1, UMAP_2, color=obj.srt@meta.data$color)) + geom_point(size=0.1) + 
+    scale_color_manual(values = c("red","blue","#F2F4F4")) +theme_classic() + 
+    theme(legend.title = element_blank()) +
+    guides(colour = guide_legend(override.aes = list(size=3))) +ggtitle(celltype)
+  print(p)
+}
+
+```
+
+
+```{r,fig.width=12, fig.height=10}
+color_sample_in_celltype(obj.srt, celltype = cell_types[1])
+color_sample_in_celltype(obj.srt, celltype = cell_types[2])
+color_sample_in_celltype(obj.srt, celltype = cell_types[3])
+color_sample_in_celltype(obj.srt, celltype = cell_types[4])
+color_sample_in_celltype(obj.srt, celltype = cell_types[5])
+
+```
+
+
+
+## Clusters on UMAP 
+
+### Resolution of 0.2 
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.2")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.2", label = T, label.size = 3)
+```
+
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+
+### Resolution of 0.4 
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.4")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.4", label = T, label.size = 3)
+```
+
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+### Resolution of 0.8 
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.8")
+DimPlot(obj.srt, group.by = "RNA_snn_res.0.8", label = T, label.size = 3)
+```
+
+
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+### Resolution of 1 
+```{r, fig.width=12, fig.height=10}
+DimPlot(obj.srt, group.by = "RNA_snn_res.1")
+DimPlot(obj.srt, group.by = "RNA_snn_res.1", label = T, label.size = 3)
+```
+
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+
+obj.srt@meta.data[,c(res,"annotation")] %>% table() %>% data.frame() %>% tidyr::spread(annotation, Freq) %>% DT::datatable(options = list(pageLength=length(unique(obj.srt@meta.data[,res]))), rownames = F)
+```
+
+
+```{r, eval=FALSE}
+# Marker gene Identification 
+find_and_save_markers <- function(obj.srt, cluster_id, logfc_threshold = 1.2, 
+                                  test_method = 'wilcox', min_percent = 0.25) {
+  Idents(obj.srt) = cluster_id
+  all.markers = FindAllMarkers(obj.srt, logfc.threshold = log2(logfc_threshold), 
+                               only.pos = TRUE, 
+                               test.use = test_method, min.pct = min_percent)
+  return(all.markers)
+}
+# apply:
+
+resolution_values <- c(0.2, 0.4, 0.8, 1)
+
+# Loop through each resolution value
+for (resolution_number in resolution_values) {
+  # Construct the resolution name
+  res <- paste0("RNA_snn_res.", resolution_number)
+  all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res, 
+                                   logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25)
+  output_file = paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv")
+  write.csv(all.markers, file = output_file, row.names = T)
+}
+```
+
+
+# Markers for clusters    
+
+
+## res 0.2  
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 0.4  
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 0.8  
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+## res 1  
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+# res
+```
+
+Download cluster marker file
+```{r}
+
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN3_MN4_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+
+# Characterization of clusters 
+
+Please complete the table with your selections for cell types and associated genes for each cluster annotation. 
+Following its completion, kindly send it to sungr_park@dfci.harvard.edu   
+
+## res 0.2  
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), description = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len), rownames = F)
+``` 
+
+
+## res 0.4  
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), description = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len), rownames = F)
+``` 
+
+
+## res 0.8  
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), description = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len), rownames = F)
+``` 
+
+
+## res 1  
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), description = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len), rownames = F)
+``` 
+
+
+# DEG between MN3 vs MN4 based on "ANNOTATION" from the merged dataset(MN1~MN4)  
+
+```{r, eval=FALSE}
+# Generate DEG files 
+#as.vector(unique(obj.srt@meta.data$annotation)) %>% print()
+
+## DEG gene analysis
+mks.function= function(obj.srt, celltype='NK'){
+  obj.srt@meta.data =obj.srt@meta.data %>% 
+    mutate(compare=ifelse(annotation == celltype & orig.ident == 'MN3','g1',
+                          ifelse(annotation == celltype & orig.ident == 'MN4','g2','other')))
+  # add compare to the ident
+  Idents(obj.srt) = 'compare'
+  logfc=log2(1)
+  mks =FindMarkers(obj.srt, ident.1 = 'g2', ident.2 = 'g1', 
+                   logfc.threshold = logfc)
+  pval=0.05
+  fc=1.2
+  mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                                 ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  mks =mks %>% mutate(labels= ifelse(DE == 'UP', gene, ifelse(DE=='DN',gene,'other')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  return(mks)
+}
+
+mks.nk=mks.function(obj.srt = obj.srt, celltype = 'NK cells')
+mks.huvec=mks.function(obj.srt = obj.srt, celltype = 'HUVEC')
+mks.fibro=mks.function(obj.srt = obj.srt, celltype = 'Fibroblasts')
+mks.mono=mks.function(obj.srt = obj.srt, celltype = 'Monocytes')
+mks.corl=mks.function(obj.srt = obj.srt, celltype = 'CORL47')
+
+# save DEG files 
+l <- list(NK = mks.nk, 
+          HUVEC = mks.huvec, 
+          Fibro = mks.fibro, 
+          Mono = mks.mono, 
+          CORL = mks.corl)
+
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/data/UMI500_50000/'
+lapply(names(l), function(name) {
+  write.csv(l[[name]], paste0(dir, name, '.MN3.4.deg.csv'), row.names = T)
+})
+
+```
+
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/data/UMI500_50000/'
+list.files(dir, pattern = "deg.csv$") 
+mks.nk= read.csv(paste0(dir,'NK','.MN3.4.deg.csv'), row.names = 1)
+mks.huvec=read.csv(paste0(dir,'HUVEC','.MN3.4.deg.csv'), row.names = 1)
+mks.fibro=read.csv(paste0(dir,'Fibro','.MN3.4.deg.csv'), row.names = 1)
+mks.mono=read.csv(paste0(dir,'Mono','.MN3.4.deg.csv'), row.names = 1)
+mks.corl=read.csv(paste0(dir,'CORL','.MN3.4.deg.csv'), row.names = 1)
+```
+
+
+## Download DEG files  
+
+### NK DEGs  
+```{r}
+DT::datatable(mks.nk, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+### Fibroblast DEGs   
+```{r}
+DT::datatable(mks.fibro, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+### HUVEC DEGs     
+```{r}
+DT::datatable(mks.huvec, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+### Monocytes DEGs   
+```{r}
+DT::datatable(mks.mono, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+### CORL47 DEGs   
+```{r}
+DT::datatable(mks.corl, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+
+## Volcanoplot   
+
+```{r}
+mks.volcanoplot = function(mks=mks, title){
+  pval=0.05
+  fc=1.2
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks =mks %>% mutate(labels= ifelse(!!sym("DE") == 'UP', gene, ifelse(!!sym("DE")=='DN',gene,'')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  p=mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c("red",'blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      geom_text(aes(label = labels), size = 2, show.legend = FALSE, hjust = 0, nudge_x = 0.03) +
+      ggeasy::easy_center_title() + ## to center title
+      ggtitle(title)
+  print(p)
+}
+```
+
+```{r}
+mks.volcanoplot.notext = function(mks=mks,title){
+  pval=0.05
+  fc=1.2
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks =mks %>% mutate(labels= ifelse(!!sym("DE") == 'UP', gene, ifelse(!!sym("DE")=='DN',gene,'')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  p=mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c("red",'blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      ggeasy::easy_center_title() + ## to center title
+      ggtitle(title)
+  print(p)
+}
+```
+
+```{r, fig.width=10, fig.height=6, out.width="120%"}
+t= "NK"
+mks.volcanoplot(mks.nk, title=t)
+mks.volcanoplot.notext(mks.nk, title=t)
+```
+
+
+```{r, fig.width=10, fig.height=6, out.width="120%"}
+t= "Fibroblast"
+mks.volcanoplot(mks.fibro, title=t)
+mks.volcanoplot.notext(mks.fibro, title=t)
+```
+
+```{r, fig.width=10, fig.height=6, out.width="120%"}
+t= "HUVEC"
+mks.volcanoplot(mks.huvec, title=t)
+mks.volcanoplot.notext(mks.huvec, title=t)
+```
+
+```{r, fig.width=10, fig.height=6, out.width="120%"}
+t= "Monocyte"
+mks.volcanoplot(mks.mono, title=t)
+mks.volcanoplot.notext(mks.mono,title=t)
+```
+
+```{r, fig.width=10, fig.height=6, out.width="120%"}
+t= "CORL47"
+mks.volcanoplot(mks.corl, title=t)
+mks.volcanoplot.notext(mks.corl, title=t)
+```
+
+
+## Violin plot of UP/DN regulated genes 
+
+Please provide your gene list for viloin plots.
+
+
+
+# Common gene analysis: DEG between MN3 vs MN4 based on "ANNOTATION" from the merged dataset(MN1~MN4) 
+
+
+## UP regulated genes  
+
+
+```{r}
+condition = "UP"
+v1=mks.nk %>% filter(DE == condition) %>% select(gene) %>% pull()
+v2=mks.fibro %>% filter(DE == condition) %>% select(gene) %>% pull()
+v3=mks.huvec %>% filter(DE == condition) %>% select(gene) %>% pull()
+v4=mks.mono %>% filter(DE == condition) %>% select(gene) %>% pull()
+v5=mks.corl %>% filter(DE == condition) %>% select(gene) %>% pull()
+
+ven_list = list(CORL47 = v5,
+                HUVEC = v3,
+                Fibroblast = v2,
+                Monocyte = v4,
+                NK = v1)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r, fig.width=10, fig.height=8, out.width="70%"}
+plot(ven_out)
+```
+
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+**Download shared gene list**  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+## DOWN regulated genes  
+
+
+```{r}
+condition = "DN"
+v1=mks.nk %>% filter(DE == condition) %>% select(gene) %>% pull()
+v2=mks.fibro %>% filter(DE == condition) %>% select(gene) %>% pull()
+v3=mks.huvec %>% filter(DE == condition) %>% select(gene) %>% pull()
+v4=mks.mono %>% filter(DE == condition) %>% select(gene) %>% pull()
+v5=mks.corl %>% filter(DE == condition) %>% select(gene) %>% pull()
+
+ven_list = list(CORL47 = v5,
+                HUVEC = v3,
+                Fibroblast = v2,
+                Monocyte = v4,
+                NK = v1)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r, fig.width=10, fig.height=8}
+plot(ven_out)
+```
+
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+**Download shared gene list**  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+

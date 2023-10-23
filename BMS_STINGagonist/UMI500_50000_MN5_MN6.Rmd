@@ -1,5 +1,5 @@
 ---
-title: "NK project: UMI 500~ 50000 MN1~MN2"
+title: "NK project: UMI 500~ 50000 MN5~MN6"
 date: "`r format(Sys.Date())`"
 output:  
   rmdformats::robobook: 
@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
 ```
 Report   
    
-This is the initial analysis report of of MN1~MN2 merged dataset.
+This is the initial analysis report of of MN5~MN6 merged dataset.
 
 ```{r libraries, echo=FALSE}
 # Load required libraries
@@ -29,15 +29,15 @@ Subseted UMI 500-50000, mitochondrial content cutoff 25%, singlet only
 ```{r}
 dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
 ## import data
-obj.srt = readRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.rds')))
+obj.srt = readRDS(paste0(dir,('rds/MN1_MN6_subset.500.50000.25.singlet.23.09.12.rds')))
 ```
 
 * Subset data  
 
-MN1,MN2 subsetting 
+MN5,MN6 subsetting 
 ```{r, eval=FALSE}
 # Happen only one time 
-obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 1:2))
+obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 5:6))
 
 ## perform default analysis
 perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
@@ -70,7 +70,7 @@ perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30,
 
 # apply
 obj.srt <- perform_default_analysis(obj.srt)
-obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
+obj.srt %>% saveRDS(paste0(dir,('rds/MN5_MN6_subset.500.50000.25.singlet.23.10.05.rds')))
 ```
 
 # Import MN1~MN2 merged data  
@@ -78,7 +78,7 @@ obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN2_subset.500.50000.25.singlet.23.10.0
 ```{r}
 dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
 ## import data
-obj.srt = readRDS(paste0(dir,('rds/MN1_MN2_subset.500.50000.25.singlet.23.10.05.rds')))
+obj.srt = readRDS(paste0(dir,('rds/MN5_MN6_subset.500.50000.25.singlet.23.10.05.rds')))
 ```
 
 Snapshot of data   
@@ -117,7 +117,7 @@ obj.srt@meta.data$orig.ident %>% table() %>% data.frame()
 ```
 
     
-```{r, eval=T}
+```{r, eval=FALSE}
 cat("UMI and mitocondrial content % distribution ", "\n")
 df= obj.srt@meta.data %>%
   group_by(orig.ident) %>%
@@ -137,8 +137,7 @@ df %>% gt::gt()
 ```
 
 
-Note: MN1 and MN2 exhibit significantly distinct UMI number distributions.     
-```{r, eval=TRUE}
+```{r, eval=FALSE}
 # Density plot of UMI counts  
 obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
 ```
@@ -150,10 +149,10 @@ obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
 ```{r}
 # Create a data frame from the given data
 data <- data.frame(
-  Sample = c("MN1", "MN2"),
+  Sample = c("MN5", "MN6"),
   HUVEC = c("HUVEC", "HUVEC"),
   Fibroblast = c("hLFB", "hLFB"),
-  SCLC_line = c("CORL47", "CORL47"),
+  SCLC_line = c("H69", "H69"),
   cGAMP = c("N", "Y"),
   monocytes = c("N", "N"),
   NK_cell = c("Y", "Y")
@@ -179,61 +178,6 @@ DimPlot(obj.srt, group.by = "orig.ident")
 ## Samples on UMAP in split mode  
 ```{r, fig.width=12, fig.height=6}
 DimPlot(obj.srt, group.by = "orig.ident", split.by = "orig.ident",ncol = 2)
-```
-
-
-## Annotation on UMAP  
-
-This annotation was done in merged dataset (as discussed).  
-
-
-```{r, fig.width=10, fig.height=8}
-DimPlot(obj.srt, group.by = "annotation")
-DimPlot(obj.srt, group.by = "annotation", label = T, label.size = 3)
-```
-
-```{r}
-obj.srt@meta.data[,"annotation"] %>% table() %>% data.frame() %>% gt::gt()
-obj.srt@meta.data[,c("annotation","orig.ident")] %>% table() %>% data.frame() %>% tidyr::spread(orig.ident,Freq) %>% gt::gt()
-```
-
-
-
-## Annotation on UMAP2   
-
-```{r}
-
-cell_types= unique(obj.srt@meta.data$annotation) 
-samples = unique(obj.srt@meta.data$orig.ident)
-
-
-color_sample_in_celltype = function(obj.srt, celltype){
-  obj.srt@meta.data$color = "other"
-  rows1= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",1)) %>% rownames()
-  rows2= obj.srt@meta.data %>% filter(annotation == celltype & orig.ident==paste0("MN",2)) %>% rownames()
-  obj.srt@meta.data[rows1,]$color= paste0("MN",1)
-  obj.srt@meta.data[rows2,]$color= paste0("MN",2)
-  obj.srt@meta.data$color = factor(obj.srt@meta.data$color)
-  
-  obj.srt@meta.data$color %>% table()
-  umap= obj.srt@reductions$umap@cell.embeddings %>% data.frame()
-  p=umap %>% ggplot(aes(UMAP_1, UMAP_2, color=obj.srt@meta.data$color)) + geom_point(size=0.1) + 
-    scale_color_manual(values = c("red","blue","#F2F4F4")) +theme_classic() + 
-    theme(legend.title = element_blank()) +
-    guides(colour = guide_legend(override.aes = list(size=3))) +ggtitle(celltype)
-  print(p)
-}
-
-```
-
-
-```{r, fig.width=10, fig.height=8}
-color_sample_in_celltype(obj.srt, celltype = cell_types[1])
-color_sample_in_celltype(obj.srt, celltype = cell_types[2])
-color_sample_in_celltype(obj.srt, celltype = cell_types[3])
-color_sample_in_celltype(obj.srt, celltype = cell_types[4])
-#color_sample_in_celltype(obj.srt, celltype = cell_types[5])
-
 ```
 
 
@@ -350,7 +294,7 @@ for (resolution_number in resolution_values) {
   res <- paste0("RNA_snn_res.", resolution_number)
   all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res, 
                                    logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25)
-  output_file = paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv")
+  output_file = paste0(dir,"data/UMI500_50000/MN5_MN6_", res, ".markers.csv")
   write.csv(all.markers, file = output_file, row.names = T)
 }
 ```
@@ -369,7 +313,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN5_MN6_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -385,7 +329,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN5_MN6_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -401,7 +345,7 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN5_MN6_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
@@ -417,12 +361,57 @@ res= paste0("RNA_snn_res.", resolution_number)
 Download cluster marker file
 ```{r}
 
-mks = read.csv(paste0(dir,"data/UMI500_50000/MN1_MN2_", res, ".markers.csv"), row.names = 1)
+mks = read.csv(paste0(dir,"data/UMI500_50000/MN5_MN6_", res, ".markers.csv"), row.names = 1)
 len =length(levels(obj.srt@meta.data[,res]))
 DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
 ```
 
 
-# Next step   
 
-Next step will be here..   
+## Clsuter to cell type   
+Please complete the table with your selections for cell types and associated genes for each cluster annotation. 
+Following its completion, kindly send it to sungr_park@dfci.harvard.edu   
+
+
+### resolution 0.2   
+```{r}
+resolution_number = 0.2 
+res= paste0("RNA_snn_res.", resolution_number)
+
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), cell_type = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+### resolution 0.4   
+```{r}
+resolution_number = 0.4 
+res= paste0("RNA_snn_res.", resolution_number)
+
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), cell_type = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+### resolution 0.8   
+```{r}
+resolution_number = 0.8 
+res= paste0("RNA_snn_res.", resolution_number)
+
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), cell_type = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+### resolution 1   
+```{r}
+resolution_number = 1 
+res= paste0("RNA_snn_res.", resolution_number)
+
+df =data.frame(cluster = paste0('Cluster ', levels(obj.srt@meta.data[,res])), cell_type = rep("NA", length(levels(obj.srt@meta.data[,res]))), genes = rep("NA", length(levels(obj.srt@meta.data[,res]))))
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(df, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
