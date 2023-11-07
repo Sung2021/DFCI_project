@@ -1,0 +1,283 @@
+---
+title: "NK project: UMI 500~ 50000 MN1~MN4"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+```{r setup, include=FALSE, echo=T}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+Report   
+   
+This is the initial analysis report of of MN1~MN4 merged dataset.
+
+```{r libraries, echo=FALSE}
+# Load required libraries
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+* Import data  
+Subseted UMI 500-50000, mitochondrial content cutoff 25%, singlet only     
+ 
+```{r rds_data, echo=FALSE, eval=FALSE}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN1_MN6_subset.500.50000.25.singlet.23.09.12.rds')))
+```
+
+* Subset data  
+
+MN1,MN2, MN3, MN4 subsetting 
+```{r, eval=FALSE}
+# Happen only one time 
+obj.srt = subset(obj.srt, orig.ident %in% paste0("MN", 1:4))
+
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.rds')))
+```
+
+# Import MN1~MN4 merged data  
+
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet.23.09.14.rds')))
+```
+
+Snapshot of data   
+```{r}
+obj.srt@meta.data[1:3, 1:4]
+```
+
+
+# Overview of subset-data  
+
+## Summary of data
+
+**pre-processing information**
+<br>
+<br>
+UMI cutoff : 500~ 50000 
+
+mitochondrial cutoff : 25 
+
+other cutoffs : NA 
+
+doublet removal (scrublet) : Y 
+
+Sample: MN1, MN2, MN3, MN4   
+
+
+
+UMI and mitochondrial content   
+```{r}
+obj.srt@meta.data[,c('nCount_RNA','percent.mt')] %>% summary() 
+```
+
+Number of cells by sample   
+```{r}
+obj.srt@meta.data$orig.ident %>% table() %>% data.frame()
+```
+
+    
+```{r, eval=FALSE}
+cat("UMI and mitocondrial content % distribution ", "\n")
+df= obj.srt@meta.data %>%
+  group_by(orig.ident) %>%
+  summarise(
+    Mean_nCount_RNA = mean(nCount_RNA),
+    Median_nCount_RNA = median(nCount_RNA),
+    SD_nCount_RNA = sd(nCount_RNA),
+    Q1_nCount_RNA = quantile(nCount_RNA, 0.25),  # 1st quantile
+    Q3_nCount_RNA = quantile(nCount_RNA, 0.75),  # 3rd quantile
+    Mean_percent_mt = mean(percent.mt),
+    Median_percent_mt = median(percent.mt),
+    SD_percent_mt = sd(percent.mt),
+    Q1_percent_mt = quantile(percent.mt, 0.25),  # 1st quantile
+    Q3_percent_mt = quantile(percent.mt, 0.75)  # 3rd quantile
+  )
+df %>% gt::gt()
+```
+
+
+```{r, eval=FALSE}
+# Density plot of UMI counts  
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, color=orig.ident)) + geom_density()
+```
+
+
+## Conditions of sample   
+```{r}
+# Create a data frame from the given data
+data <- data.frame(
+  Sample = c("MN1", "MN2", "MN3", "MN4"),
+  HUVEC = c("HUVEC", "HUVEC", "HUVEC", "HUVEC"),
+  Fibroblast = c("hLFB", "hLFB", "hLFB", "hLFB"),
+  SCLC_line = c("CORL47", "CORL47", "CORL47", "CORL47"),
+  cGAMP = c("N", "Y", "N", "Y"),
+  monocytes = c("N", "N", "Y", "Y"),
+  NK_cell = c("Y", "Y", "Y", "Y")
+)
+
+# Set the row names to the "RowNames" column
+rownames(data) <- data$RowNames
+
+# Print the data frame
+data %>% gt::gt()
+
+```
+
+
+# UMAP  
+
+## Samples on UMAP 
+```{r, fig.width=7, fig.height=6}
+DimPlot(obj.srt, group.by = "orig.ident")
+```
+
+
+## Samples on UMAP in split mode  
+```{r, fig.width=7, fig.height=6}
+DimPlot(obj.srt, group.by = "orig.ident", split.by = "orig.ident",ncol = 2)
+```
+
+
+
+## Annotated Cell Types on UMAP 
+```{r, fig.width=7, fig.height=6}
+DimPlot(obj.srt, group.by = "annotation")
+```
+
+
+## Annotated Cell Types in split mode  
+```{r, fig.width=8, fig.height=6}
+DimPlot(obj.srt, group.by = "annotation", split.by = "annotation",ncol = 3)
+```
+
+
+# Subset HUVEC cells  
+
+
+```{r, eval=FALSE}
+# Happen only one time 
+obj.srt = subset(obj.srt, annotation %in% "HUVEC")
+
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet_HUVEConly.23.10.23.rds')))
+```
+
+
+# Subset Fibroblast cells  
+
+
+```{r, eval=FALSE}
+# Happen only one time 
+obj.srt = subset(obj.srt, annotation %in% "Fibroblasts")
+
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,('rds/MN1_MN4_subset.500.50000.25.singlet_Fibroblastsonly.23.10.23.rds')))
+```
+
+
+
+<br>
+<br>
+<br>
+<br>

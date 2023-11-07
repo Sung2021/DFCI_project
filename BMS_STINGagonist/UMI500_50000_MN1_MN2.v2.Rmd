@@ -102,7 +102,7 @@ other cutoffs : NA
 
 doublet removal (scrublet) : Y 
 
-Sample: MN3, MN4   
+Sample: MN1, MN2   
 
 
 

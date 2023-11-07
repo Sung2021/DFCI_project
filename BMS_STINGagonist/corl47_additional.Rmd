@@ -1,0 +1,70 @@
+---
+title: "NK project: UMI 500~ 50000 MN3~MN4"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE, echo=T}
+knitr::opts_chunk$set(echo=F, fig.align = "center", message=F, warning=F)
+```
+
+```{r libraries, echo=FALSE}
+# Load required libraries
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+dir= '~/Desktop/DF/DFCI_Barbie/DFCI_Barbie_NK_Marco/'
+## import data
+obj.srt = readRDS(paste0(dir,('rds/MN3_MN4_subset.500.50000.25.singlet.23.09.28.rds')))
+```
+
+# Comparison of of the response to cGAMP  
+
+1. Interferon response in each cell types   
+  (with MN3 vs MN4 comparison)    
+  
+2. Chemokine genes expression in each cell types   
+  (with MN3 vs MN4 comparison)   
+
+
+
+```{r, fig.width=8, fig.height=6}
+Idents(obj.srt) = "annotation"
+IFNG_responding_gs= c("IFI6", "IFIT3", "IFI44L", "IFIT2", "IFIT1", "IFI35", "IFI44", "IFITM3", "IFI16", "IFITM2", "IFITM1", "IFI27","IFIH1", "IFIT5", "IFI30", "ISG15", "ISG20", "IFNG")
+DotPlot(obj.srt, features = IFNG_responding_gs, 
+        cols = c("blue", "red"), split.by = "orig.ident") + coord_flip() + RotatedAxis() +
+  ggtitle("STING agonist responding genes")
+```
+
+
+```{r,fig.width=8, fig.height=4}
+Idents(obj.srt) = "annotation"
+DotPlot(obj.srt, features = c("CXCL11","CXCL10","CXCL9","CCL2","CCL5","CCL7","CCL3"), 
+        cols = c("blue", "red"), split.by = "orig.ident") + coord_flip() + RotatedAxis() +
+  ggtitle("Selected chemokine genes")
+```
+
+
+```{r,fig.width=8, fig.height=10}
+Idents(obj.srt) = "annotation"
+chemokine_gs= c("CXCL8", "CXCL6", "CXCL1", "CXCL5", "CXCL3", "CXCL2", "CXCL9", "CXCL10", "CXCL11",
+            "CXCL13", "CXCL14", "CXCL12", "CXCL16", "CXCL17", "CCL20", "CCL28", "CCL26", "CCL24",
+            "CCL27", "CCL19", "CCL21", "CCL22", "CCL17", "CCL2", "CCL7", "CCL11", "CCL8",
+            "CCL13", "CCL1", "CCL5", "CCL16", "CCL14", "CCL15", "CCL23", "CCL18", "CCL3",
+            "CCL4", "CCL3L1", "CCL4L2", "CCL25")
+DotPlot(obj.srt, features = chemokine_gs, 
+        cols = c("blue", "red"), split.by = "orig.ident") + coord_flip() + RotatedAxis() +
+  ggtitle("Chemokine genes")
+```
