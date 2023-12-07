@@ -1,0 +1,174 @@
+---
+title: "RNA-seq SJ"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "center", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+# SJ RNA-seq 
+  
+Load packages
+
+```{r, echo=TRUE}
+library(dplyr)
+library(ggplot2)
+library(DESeq2)
+library(edgeR)
+library(reshape)
+```
+
+```{r, echo=FALSE}
+dir="~/Desktop/DF/MGH_Salvia/RNA_seq/"
+fc=readRDS(paste0(dir,"rds/fc.sym.23.03.15.rds"))
+fc.symbol = fc %>% filter(symbol !="NA")
+rownames(fc.symbol) = fc.symbol$symbol
+fc.symbol[1:3,]
+fc.symbol = fc.symbol[,-c(17,16,15)]
+
+sample_names <- colnames(fc.symbol)
+# Remove the specified pattern
+new_sample_names <- sub("Aligned.sortedByCoord.out.bam", "", sample_names)
+colnames(fc.symbol) = new_sample_names
+# save csv
+fc.symbol %>% write.csv(paste0(dir,"rds/RNA_seq_SJ_featurecounts_symbol.csv"))
+```
+
+
+```{r}
+dir="~/Desktop/DF/MGH_Salvia/RNA_seq/"
+fc.symbol=read.csv(paste0(dir,"rds/RNA_seq_SJ_featurecounts_symbol.csv"), row.names = 1)
+```
+
+25865 features    
+14 samples    
+
+```{r}
+# row sums =0 filtering out 
+# Calculate row sums
+row_sums <- rowSums(fc.symbol)
+# Filter out rows with row sums equal to 0
+fc.symbol_filtered <- fc.symbol[row_sums != 0, ]
+```
+
+## Select samples for downstream analysis   
+```{r}
+cols = fc.symbol_filtered %>% colnames()
+selected_cols=grep("1B0|1B10|1B1|1B3|1B30|S1|S2|S3|S4", cols)
+count.mtx =fc.symbol_filtered[,selected_cols]
+```
+
+Control(Naive) : S1,S2,S3,S4   
+Test : 1B0,1B10,1B1,1B3,1B30     
+
+
+```{r}
+count.mtx %>% DT::datatable(options = list(autoWidth = TRUE, 
+                             fixedHeader = TRUE,
+                             dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+
+```{r}
+se <- SummarizedExperiment(as.matrix(count.mtx), 
+                           colData=DataFrame(sample=1:ncol(count.mtx)))
+dds <- DESeqDataSet(se, ~ 1)
+dds$sample = colnames(dds)
+vsd <- vst(dds, blind=FALSE)
+```
+
+## PCA plot    
+```{r}
+pcaData <- DESeq2::plotPCA(vsd, intgroup = "sample", returnData = TRUE)
+PCA_var=attr(pcaData, "percentVar")
+
+# Create a PCA plot
+ggplot(pcaData, aes(x = PC1, y = PC2, color = sample, label = sample)) +
+  geom_point(size = 4, alpha=0.5) +
+  geom_text(hjust = -0.2, vjust = -0.1, size=2) +
+  labs(x = paste("PC1: ", round(100 * PCA_var[1]), "% variance"),
+       y = paste("PC2: ", round(100 * PCA_var[2]), "% variance")) +
+  theme_bw()
+```
+
+
+## sample table   
+```{r}
+# Create a data frame
+df <- data.frame(
+  sample = c("RNA_1B0", "RNA_1B1", "RNA_1B10", "RNA_1B3", "RNA_1B30", "RNA_1F10", "RNA_S1", "RNA_S2", "RNA_S3", "RNA_S4"),
+  condition = c("MOPC21_Resistant", "MOPC21_Resistant", "MOPC21_Resistant", "MOPC21_Resistant", "MOPC21_Resistant", "MIAP410_Resistant", "Naive_None", "Naive_None", "Naive_None", "Naive_None")
+)
+df %>% DT::datatable()
+```
+
+# DEG   
+
+```{r, echo=T}
+# Generate info table
+info <- data.frame(matrix(nrow = ncol(count.mtx), ncol = 2))
+colnames(info) <- c('sample', 'cond')
+info$sample <- colnames(count.mtx)
+info$cond <- c( rep("Resistant",5),rep("Naive",4))
+info
+
+# DESeq
+dds <- DESeqDataSetFromMatrix(count.mtx, info, ~ cond)
+# cat("DESeq object dimension" ,"\n")
+# dim(dds)
+dds <- DESeq(dds)
+res <- results(dds)
+# cat("DEGs object dimension" ,"\n")
+# dim(res)
+res <- data.frame(res)
+```
+
+
+## Download DEG file  
+```{r}
+res %>% DT::datatable(., editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+```
+
+
+## Volcano plot   
+
+Resist/Naive   
+
+pval=0.05   
+fc=1.2   
+
+```{r}
+pval=0.05
+fc=1.2
+res=res %>% filter(padj !="NA")
+res = res %>% mutate(DE=ifelse(log2FoldChange >= log2(fc) & padj < pval, 'UP',
+                               ifelse(log2FoldChange <= -log2(fc) & padj < pval, 'DN','no_sig')))
+res$DE = factor(res$DE, levels = c('UP','DN','no_sig'))
+
+res %>% 
+  ggplot(aes(log2FoldChange, -log10(padj), color=DE)) + 
+  geom_point(size=1, alpha=0.5) + 
+  scale_color_manual(values = c('red','blue','grey')) +
+  theme_classic() +
+  geom_vline(xintercept = c(-log2(fc),log2(fc)), color='grey') +
+  geom_hline(yintercept = -log10(0.05),color='grey') +
+  guides(colour = guide_legend(override.aes = list(size=5))) +
+  ggtitle("Resist/Naive") +
+  ggeasy::easy_center_title() ## to center title
+
+```
+
