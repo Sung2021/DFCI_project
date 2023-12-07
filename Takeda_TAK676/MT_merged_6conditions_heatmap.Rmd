@@ -1,0 +1,145 @@
+---
+title: "Takeda PD1 + NK set merged"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+```
+
+# Merging condition  
+
+4 from Elena's set    
+MT30273.raw.23.05.16.rds    
+MT30271.raw.23.05.16.rds    
+MT30269.raw.23.05.16.rds    
+MT30212.raw.23.05.16.rds    
+    
+2 from Patrick's set    
+Takeda.NK.30298.23.08.17.rds    
+Takeda.NK.30293.23.08.17.rds    
+    
+    
+
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+<br>
+
+
+Selected samples (after filtering)    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 3976 | 5182 |
+|   30298    | 9620 | 6054 |
+|  MT30212   | 522  | 463  |
+|  MT30269   | 6185 | 5551 |
+|  MT30271   | 5602 | 6412 |
+|  MT30273   | 3031 | 1569 |
+
+
+Filtering  
+- doublet removal   
+- UMI : 500 < & < 20,000    
+- mt content <= 25    
+- ribosomal gene regression out    
+
+
+# Data   
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/'
+obj.srt =readRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+```
+
+
+Total number of cells: 54167    
+
+
+```{r,eval=FALSE}
+# Total number of cells 
+obj.srt@meta.data %>% nrow()
+```
+
+
+# Heatmaps    
+
+
+## 0.2  
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+```
+
+
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=12, fig.height=12}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 0.4  
+
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=14, fig.height=14}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 0.8  
+
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=16, fig.height=20}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 1  
+
+
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=22, fig.height=28}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 10))
+```

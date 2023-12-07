@@ -1,0 +1,58 @@
+---
+title: "Takeda lymphoid from Merged dataset"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+```
+
+# Report 
+
+This is a report for lymphoid subset from merged dataset.
+
+```{r, echo=F}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+
+# Patient-batch corrected data {.tabset}    
+
+```{r}
+dir <- "~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+obj.srt= readRDS(paste0(dir, "rds/obj.MT_merged.3_conditions.lymphoid.intgr_patiens.rds"))
+```
+
+<br>
+
+## UMAP   
+```{r}
+DimPlot(obj.srt, group.by = "orig.ident")
+```
+
+## UMAP in split mode    
+```{r, fig.width=12, fig.height=4}
+DimPlot(obj.srt, group.by = "orig.ident", split.by = "orig.ident")
+```
+
+
+# Gene expression  
+
+```{r}
+genes = c("CD3E","CD8A","CD4","CD79A", "NKG7")
+FeaturePlot(obj.srt, features = genes, ncol = 3, slot = "data", pt.size = 0.1)
+```
+
+
+
