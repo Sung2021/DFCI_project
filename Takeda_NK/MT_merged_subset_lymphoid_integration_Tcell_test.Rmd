@@ -1,0 +1,674 @@
+---
+title: "Takeda Lymphoid from Merged dataset"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+```
+
+# Outline
+
+Takeda Lymphoid CD8+T cell data analysis.   
+
+CD8+T cells (in this analysis) include  
+- T cell1   
+- T cell:IFNG-responding   
+- CD8:Effector T   
+
+
+
+
+```{r, echo=F}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+
+<br>
+
+1.  **T cells changes in CTL vs TAK, CTL vs COM and TAK vs COM (NR1,NR2, and R)**
+
+         
+    T cells changes in CTL vs TAK, CTL vs COM and TAK vs COM in NR1   
+    T cells changes in CTL vs TAK, CTL vs COM and TAK vs COM in NR2   
+    T cells changes in CTL vs TAK, CTL vs COM and TAK vs COM in R   
+
+<br> <br>
+<img src="img/comparison_outline1.png" width="60%" height="auto">
+
+<br> <br>
+
+
+**Import data**
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+obj.srt = readRDS(paste0(dir, "rds/obj.MT_merged.3_conditions.lymphoid.rds"))
+```
+
+```{r, fig.width=8, fig.height=6}
+DimPlot(obj.srt, group.by = "intgr_annotation",label = T)
+```
+
+```{r, fig.width=8, fig.height=6}
+DimPlot(obj.srt, group.by = "subresponding_group",label = T)
+```
+
+
+# DEGs in NR1 {.tabset}
+
+```{r, eval=TRUE}
+# Function은 실행해야한다. 
+# Generate DEG files 
+#as.vector(unique(obj.srt@meta.data$annotation)) %>% print()
+## DEG gene analysis
+DEG.function= function(obj.srt, celltype, sub_gs="NR1", cond1,cond2){
+  obj.srt@meta.data =obj.srt@meta.data %>% 
+    mutate(compare=ifelse(intgr_annotation %in% celltype & subresponding_group == sub_gs & sample == cond1 ,'g1',
+                          ifelse(intgr_annotation %in% celltype & subresponding_group == sub_gs & sample == cond2,'g2','other')))
+  # add compare to the ident
+  Idents(obj.srt) = 'compare'
+  logfc=log2(1)
+  mks =FindMarkers(obj.srt, ident.1 = 'g2', ident.2 = 'g1', 
+                   logfc.threshold = logfc)
+  pval=0.05
+  fc=1.2
+  mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                                 ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks$gene = rownames(mks)
+  mks =mks %>% mutate(labels= ifelse(DE == 'UP', gene, ifelse(DE=='DN',gene,'other')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  return(mks)
+}
+
+
+mks.volcanoplot = function(mks=mks, title){
+  pval=0.05
+  fc=1.2
+  mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+  mks =mks %>% mutate(labels= ifelse(!!sym("DE") == 'UP', gene, ifelse(!!sym("DE")=='DN',gene,'')))
+  mks =mks %>% arrange(desc(avg_log2FC))
+  p=mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+      geom_point(size = 1, alpha = 0.5) + 
+      scale_color_manual(values = c("red",'blue', 'grey')) +
+      theme_classic() +
+      geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+      geom_hline(yintercept = -log10(0.05), color = 'grey') +
+      guides(colour = guide_legend(override.aes = list(size = 5))) +
+      geom_text(aes(label = labels), size = 2, show.legend = FALSE, hjust = 0, nudge_x = 0.03) +
+      ggeasy::easy_center_title() + ## to center title
+      ggtitle(title)
+  print(p)
+}
+
+```
+
+
+```{r, eval=FALSE}
+celltypes= c('T cell 1','T cell:IFNG-responding',"CD8:Effector T")
+DEG.Tcell_NR1_CTL_TAK =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR1", cond1="CTL", cond2="TAK")
+DEG.Tcell_NR1_CTL_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR1", cond1="CTL", cond2="COM")
+DEG.Tcell_NR1_TAK_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR1", cond1="TAK", cond2="COM")
+
+
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_NR1_CTL_TAK %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_CTL_TAK.csv"))
+DEG.Tcell_NR1_CTL_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_CTL_COM.csv"))
+DEG.Tcell_NR1_TAK_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_TAK_COM.csv"))
+```
+
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_NR1_CTL_TAK = read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_CTL_TAK.csv"), row.names = 1)
+DEG.Tcell_NR1_CTL_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_CTL_COM.csv"), row.names = )
+DEG.Tcell_NR1_TAK_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR1_TAK_COM.csv"), row.names = 1)
+```
+
+
+## DEG.Tcell_NR1_CTL_TAK   
+```{r}
+DEG.Tcell_NR1_CTL_TAK %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR1_CTL_TAK volcano
+```{r}
+t= "NR1 CTL vs TAK"
+mks.volcanoplot(DEG.Tcell_NR1_CTL_TAK, title=t)
+```
+
+
+## DEG.Tcell_NR1_CTL_COM   
+```{r}
+DEG.Tcell_NR1_CTL_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR1_CTL_COM volcano
+```{r}
+t= "NR1 CTL vs COM"
+mks.volcanoplot(DEG.Tcell_NR1_CTL_COM, title=t)
+```
+
+
+
+## DEG.Tcell_NR1_TAK_COM   
+```{r}
+DEG.Tcell_NR1_TAK_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR1_TAK_COM volcano
+```{r}
+t= "NR1 TAK vs COM"
+mks.volcanoplot(DEG.Tcell_NR1_TAK_COM, title=t)
+```
+
+
+## Common UP genes {.tabset} 
+
+### UP regulated genes
+
+```{r}
+condition = "UP"
+v1= DEG.Tcell_NR1_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_NR1_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_NR1_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+## Common DOWN genes {.tabset} 
+
+### DOWN regulated genes
+
+```{r}
+condition = "DN"
+v1= DEG.Tcell_NR1_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_NR1_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_NR1_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+<br>
+<hr>
+<br>
+
+
+# DEGs in NR2 {.tabset}   
+
+```{r, eval=FALSE}
+celltypes= c('T cell 1','T cell:IFNG-responding',"CD8:Effector T")
+DEG.Tcell_NR2_CTL_TAK =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR2", cond1="CTL", cond2="TAK")
+DEG.Tcell_NR2_CTL_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR2", cond1="CTL", cond2="COM")
+DEG.Tcell_NR2_TAK_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="NR2", cond1="TAK", cond2="COM")
+
+
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_NR2_CTL_TAK %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_CTL_TAK.csv"))
+DEG.Tcell_NR2_CTL_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_CTL_COM.csv"))
+DEG.Tcell_NR2_TAK_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_TAK_COM.csv"))
+```
+
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_NR2_CTL_TAK = read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_CTL_TAK.csv"), row.names = 1)
+DEG.Tcell_NR2_CTL_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_CTL_COM.csv"), row.names = 1)
+DEG.Tcell_NR2_TAK_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_NR2_TAK_COM.csv"), row.names = 1)
+```
+
+
+## DEG.Tcell_NR1_CTL_TAK   
+```{r}
+DEG.Tcell_NR2_CTL_TAK %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR2_CTL_TAK volcano
+```{r}
+t= "NR2 CTL vs TAK"
+mks.volcanoplot(DEG.Tcell_NR2_CTL_TAK, title=t)
+```
+
+
+## DEG.Tcell_NR2_CTL_COM   
+```{r}
+DEG.Tcell_NR2_CTL_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR2_CTL_COM volcano
+```{r}
+t= "NR2 CTL vs COM"
+mks.volcanoplot(DEG.Tcell_NR2_CTL_COM, title=t)
+```
+
+
+
+## DEG.Tcell_NR2_TAK_COM   
+```{r}
+DEG.Tcell_NR2_TAK_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_NR2_TAK_COM volcano
+```{r}
+t= "NR2 TAK vs COM"
+mks.volcanoplot(DEG.Tcell_NR2_TAK_COM, title=t)
+```
+
+
+## Common UP genes {.tabset} 
+
+### UP regulated genes
+
+```{r}
+condition = "UP"
+v1= DEG.Tcell_NR2_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_NR2_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_NR2_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+## Common DOWN genes {.tabset} 
+
+### DOWN regulated genes
+
+```{r}
+condition = "DN"
+v1= DEG.Tcell_NR2_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_NR2_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_NR2_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+<br>
+<hr>
+<br>
+
+
+
+
+
+# DEGs in R {.tabset}   
+
+```{r, eval=FALSE}
+celltypes= c('T cell 1','T cell:IFNG-responding',"CD8:Effector T")
+DEG.Tcell_R_CTL_TAK =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="R", cond1="CTL", cond2="TAK")
+DEG.Tcell_R_CTL_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="R", cond1="CTL", cond2="COM")
+DEG.Tcell_R_TAK_COM =DEG.function(obj.srt = obj.srt, celltype=celltypes, sub_gs="R", cond1="TAK", cond2="COM")
+
+
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_R_CTL_TAK %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_CTL_TAK.csv"))
+DEG.Tcell_R_CTL_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_CTL_COM.csv"))
+DEG.Tcell_R_TAK_COM %>% write.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_TAK_COM.csv"))
+```
+
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda/"
+DEG.Tcell_R_CTL_TAK = read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_CTL_TAK.csv"), row.names = 1)
+DEG.Tcell_R_CTL_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_CTL_COM.csv"), row.names = 1)
+DEG.Tcell_R_TAK_COM =read.csv(paste0(dir,"data/mks/merged/integration_lymphoid/DEG.Tcell_R_TAK_COM.csv"), row.names = 1)
+```
+
+
+## DEG.Tcell_NR1_CTL_TAK   
+```{r}
+DEG.Tcell_R_CTL_TAK %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_R_CTL_TAK volcano
+```{r}
+t= "R CTL vs TAK"
+mks.volcanoplot(DEG.Tcell_R_CTL_TAK, title=t)
+```
+
+
+## DEG.Tcell_R_CTL_COM   
+```{r}
+DEG.Tcell_R_CTL_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_R_CTL_COM volcano
+```{r}
+t= "R CTL vs COM"
+mks.volcanoplot(DEG.Tcell_R_CTL_COM, title=t)
+```
+
+
+
+## DEG.Tcell_R_TAK_COM   
+```{r}
+DEG.Tcell_R_TAK_COM %>% DT::datatable(extensions = "Buttons", 
+                options = list(autoWidth = TRUE, 
+                               fixedHeader = TRUE,
+                               dom="Bfrtip", buttons=c("csv","excel")))
+```
+
+## Tcell_R_TAK_COM volcano
+```{r}
+t= "R TAK vs COM"
+mks.volcanoplot(DEG.Tcell_R_TAK_COM, title=t)
+```
+
+
+## Common UP genes {.tabset} 
+
+### UP regulated genes
+
+```{r}
+condition = "UP"
+v1= DEG.Tcell_R_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_R_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_R_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+## Common DOWN genes {.tabset} 
+
+### DOWN regulated genes
+
+```{r}
+condition = "DN"
+v1= DEG.Tcell_R_CTL_TAK%>% filter(DE == condition) %>% select(gene) %>% pull()
+v2= DEG.Tcell_R_CTL_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+v3= DEG.Tcell_R_TAK_COM%>% filter(DE == condition) %>% select(gene) %>% pull()
+
+
+ven_list = list(CTL_TAK=v1, CTL_COM=v2, TAK_COM=v3)
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+
+```{r}
+cat("CTL vs TAK : ")
+cat("\n\n")
+cat(ven_list$CTL_TAK)
+```
+
+```{r}
+cat("CTL vs COM : ")
+cat("\n\n")
+cat(ven_list$CTL_COM)
+```
+
+```{r}
+cat("TAK vs COM : ")
+cat("\n\n")
+cat(ven_list$TAK_COM)
+```
+
+
+### Venn Diagram  
+```{r, fig.width=8, fig.height=6, out.width="80%"}
+plot(ven_out)
+```
+
+
+### Upset Plots  
+```{r}
+plot(ven_out, type = "upset")
+```
+
+
+### Shared genes  
+```{r}
+DT::datatable(ven_out@result, editable = FALSE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=20))
+```
+
+
+<br>
+<hr>
+<br>
+
+
+
