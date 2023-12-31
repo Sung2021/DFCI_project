@@ -1,0 +1,132 @@
+---
+title: "Takeda PD1 + NK merged: Lymphoid T cell request"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+```
+
+
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+<br>
+
+# Lymphoid Data   
+
+```{r}
+dir <- "~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+obj.srt = readRDS(paste0(dir,"rds/obj.cond6_merged.lymphoid.rds"))
+```
+
+## Number of Lymphoid cells  
+```{r}
+df1 =obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame()
+df2 =obj.srt@meta.data %>% select(orig.ident, sample) %>% table() %>% 
+  data.frame() %>% tidyr::spread(sample, Freq)
+df = cbind(df1, df2[,2:3])
+colnames(df)[1] = "Total"
+df %>% DT::datatable()
+```
+
+## Number of T cells   
+
+T cell definition : CD8 > 0 & CD4=0   
+```{r}
+## CD8A+ population ratio    
+# Find T cell populations
+g1= "CD8A"
+g2= "CD8B"
+g3= "CD4"
+
+obj = obj.srt
+
+obj@meta.data[,g1] = obj@assays$RNA@data[g1,]
+obj@meta.data[,g2] = obj@assays$RNA@data[g2,]
+obj@meta.data[,g3] = obj@assays$RNA@data[g3,]
+
+# CD8A > 0 & CD8B >0 & CD4 =0 
+rs = obj@meta.data %>% filter(!!(sym(g1)) > 0 |!!(sym(g2)) > 0 & !!(sym(g3)) == 0) %>% rownames()
+# number of cells table
+obj@meta.data[rs,] %>% select(orig.ident, sample) %>% table() %>% data.frame() %>% 
+  tidyr::spread(sample, Freq) %>% DT::datatable()
+```
+
+# Requested table    
+```{r}
+# Subset T cells only
+obj.T = subset(obj.srt, cells = rs)
+obj.T@meta.data$T_id = paste0(obj.T@meta.data$orig.ident, "_", obj.T@meta.data$sample)
+obj.T@meta.data$T_id = factor(obj.T@meta.data$T_id)
+levels(obj.T@meta.data$T_id) = c("293_C","293_T","298_C","298_T","212_C","212_T",
+                                 "269_C","269_T","271_C","271_T","273_C","273_T")
+```
+
+```{r}
+# Find genes 
+genes = read.csv(paste0(dir, "info/sextet CD8A&B Features_all genes_20231222.csv"), row.names = 1)
+gs=rownames(genes) 
+```
+
+```{r}
+### average expression of selected genes
+Idents(obj.T) = 'T_id'
+df = AverageExpression(obj.T, features = gs) 
+df.rna = df$RNA
+
+cols =c("212_C","271_C","269_C","273_C","293_C","298_C",
+        "212_T","271_T","269_T","273_T","293_T","298_T")
+df.rna =df.rna[,cols] %>% data.frame(check.names = F)
+
+# t-테스트를 수행하는 함수
+perform_t_test <- function(row_values) {
+  group1 <- row_values[1:2]  # 212_C, 271_C
+  group2 <- row_values[3:6]  # 269_C, 273_C, 293_C, 298_C
+  result <- t.test(group1, group2)
+  return(result$p.value)
+}
+
+# 새로운 열을 담을 벡터 초기화
+t_test_results <- as.numeric(nrow(df.rna))
+
+# 각 행에 대해 t-테스트를 수행하고 결과를 벡터에 저장
+for (i in seq(nrow(df.rna))) {
+  t_test_results[i] <- perform_t_test(df.rna[i, c("212_C", "271_C", "269_C", "273_C", "293_C", "298_C")])
+}
+
+# 새로운 열 추가
+df.rna$t_test_C <- t_test_results
+
+
+# 새로운 열을 담을 벡터 초기화
+t_test_results <- as.numeric(nrow(df.rna))
+
+# 각 행에 대해 t-테스트를 수행하고 결과를 벡터에 저장
+for (i in seq(nrow(df.rna))) {
+  t_test_results[i] <- perform_t_test(df.rna[i, c("212_T", "271_T", "269_T", "273_T", "293_T", "298_T")])
+}
+
+# 새로운 열 추가
+df.rna$t_test_T <- t_test_results
+```
+
+## Average expression and t-test between R vs NR    
+
+```{r}
+df.rna %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+```
+

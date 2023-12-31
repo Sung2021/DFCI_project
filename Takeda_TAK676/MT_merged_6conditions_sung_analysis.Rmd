@@ -1,0 +1,237 @@
+---
+title: "Takeda PD1 + NK set merged"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+```
+
+# Merging condition  
+
+4 from Elena's set    
+MT30273.raw.23.05.16.rds    
+MT30271.raw.23.05.16.rds    
+MT30269.raw.23.05.16.rds    
+MT30212.raw.23.05.16.rds    
+    
+2 from Patrick's set    
+Takeda.NK.30298.23.08.17.rds    
+Takeda.NK.30293.23.08.17.rds    
+    
+    
+
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+<br>
+
+# Data Overview     
+
+
+Total 126229 cells from 6 samples 
+
+
+| orig.ident |  COM  | CTL  | NKC  | PEM  | TAK  |
+|------------|------|------|------|------|------|
+|   30293    | 4176 | 5058 | 7463 | 0    | 6472 |
+|   30298    | 8578 | 11398| 7131 | 0    | 7595 |
+|  MT30212   | 867  | 883  | 0    | 1005 | 656  |
+|  MT30269   | 4553 | 7118 | 0    | 10693| 6287 |
+|  MT30271   | 3646 | 6091 | 0    | 7853 | 6835 |
+|  MT30273   | 5173 | 3929 | 0    | 0    | 2769 |
+
+
+
+Selected samples    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 5058 | 6472 |
+|   30298    | 11398| 7595 |
+|  MT30212   | 883  | 656  |
+|  MT30269   | 7118 | 6287 |
+|  MT30271   | 6091 | 6835 |
+|  MT30273   | 3929 | 2769 |
+
+
+
+Selected samples (after filtering)    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 3976 | 5182 |
+|   30298    | 9620 | 6054 |
+|  MT30212   | 522  | 463  |
+|  MT30269   | 6185 | 5551 |
+|  MT30271   | 5602 | 6412 |
+|  MT30273   | 3031 | 1569 |
+
+
+Filtering  
+- doublet removal   
+- UMI : 500 < & < 20,000    
+- mt content <= 25%    
+- ribosomal gene regression out    
+
+
+```{r, eval=FALSE}
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  ## Check ribosomal gene ratio and add ribosomal gene percentage
+  ribosomal_genes <- rownames(obj.srt)[grepl('^RP', rownames(obj.srt))]
+  obj.srt[["percent.ribo"]] <- PercentageFeatureSet(obj.srt, pattern = "^RP")
+  
+  ## Define variables in metadata to regress
+  vars_to_regress <- c('percent.ribo')
+  
+  # Step 2: Scale and normalize data
+  ## Regress out the uninteresting sources of variation in the data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(object = obj.srt, vars.to.regress = vars_to_regress, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/'
+obj.srt %>% saveRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+```
+
+
+# Data   
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/'
+obj.srt =readRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+#obj.srt@meta.data = obj.srt@meta.data %>% mutate(response= ifelse(orig.ident %in% c("MT30212","MT30271"), "R","NR"))
+#obj.srt %>% saveRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+```
+
+
+Total number of cells from CTL and TAK : 54167    
+
+
+```{r,eval=FALSE}
+# Total number of cells 
+obj.srt@meta.data %>% nrow()
+```
+
+```{r, fig.width=3, fig.height=3}
+grps="sample"
+obj.srt@meta.data %>% ggplot(aes(!!sym(grps), fill=orig.ident)) + geom_bar(position = 'fill') + theme_minimal()
+```
+
+```{r, fig.width=3, fig.height=3}
+library(scales)
+res = "sample"
+obj.srt@meta.data %>%
+  group_by(!!sym(res), orig.ident) %>%
+  summarise(count = n()) %>%
+  group_by(!!sym(res)) %>%
+  mutate(percent = count / sum(count) * 100) %>%
+  ggplot(aes(x = !!sym(res), y = percent, fill = orig.ident)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percent)), 
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE, size=3) +
+  labs(y = "Percentage") +
+  theme_minimal()
+
+```
+
+```{r}
+obj.srt@meta.data %>% filter(response == "NR") %>%
+  group_by(!!sym(res), orig.ident) %>%
+  summarise(count = n()) %>%
+  group_by(!!sym(res)) %>%
+  mutate(percent = count / sum(count) * 100) %>%
+  ggplot(aes(x = !!sym(res), y = percent, fill = orig.ident)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percent)), 
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE, size=3) +
+  labs(y = "Percentage") +
+  theme_minimal()
+```
+
+```{r}
+obj.srt@meta.data %>% filter(response == "R") %>%
+  group_by(!!sym(res), orig.ident) %>%
+  summarise(count = n()) %>%
+  group_by(!!sym(res)) %>%
+  mutate(percent = count / sum(count) * 100) %>%
+  ggplot(aes(x = !!sym(res), y = percent, fill = orig.ident)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = sprintf("%.1f%%", percent)), 
+            position = position_stack(vjust = 0.5),
+            show.legend = FALSE, size=3) +
+  labs(y = "Percentage") +
+  theme_minimal()
+```
+
+
+
+## UMAP    
+
+### Distribution of samples   
+```{r, fig.height=7, fig.width=8}
+DimPlot(obj.srt, group.by = "orig.ident", pt.size = 0.1)
+```
+
+```{r, fig.height=7, fig.width=12}
+DimPlot(obj.srt, group.by = "orig.ident", pt.size = 0.1, split.by = "orig.ident", ncol = 3)
+```
+
+### Distribution of Treatment   
+```{r, fig.height=7, fig.width=8}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1)
+```
+
+```{r, fig.height=7, fig.width=12}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1, split.by = "sample", ncol = 3)
+```
+
+
+### Distribution of samples splited by treatment   
+
+
+```{r, fig.height=12, fig.width=8}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1, split.by = "orig.ident", ncol = 2)
+```
+
+

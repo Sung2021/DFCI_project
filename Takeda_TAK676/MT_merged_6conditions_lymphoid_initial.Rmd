@@ -1,0 +1,207 @@
+---
+title: "Takeda PD1 + NK set merged"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+
+```
+
+# Merging condition  
+
+4 from Elena's set    
+MT30273.raw.23.05.16.rds    
+MT30271.raw.23.05.16.rds    
+MT30269.raw.23.05.16.rds    
+MT30212.raw.23.05.16.rds    
+    
+2 from Patrick's set    
+Takeda.NK.30298.23.08.17.rds    
+Takeda.NK.30293.23.08.17.rds    
+    
+    
+
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+<br>
+
+# Data Overview     
+
+Total 126229 cells from 6 samples 
+
+
+| orig.ident |  COM  | CTL  | NKC  | PEM  | TAK  |
+|------------|------|------|------|------|------|
+|   30293    | 4176 | 5058 | 7463 | 0    | 6472 |
+|   30298    | 8578 | 11398| 7131 | 0    | 7595 |
+|  MT30212   | 867  | 883  | 0    | 1005 | 656  |
+|  MT30269   | 4553 | 7118 | 0    | 10693| 6287 |
+|  MT30271   | 3646 | 6091 | 0    | 7853 | 6835 |
+|  MT30273   | 5173 | 3929 | 0    | 0    | 2769 |
+
+
+Selected samples    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 5058 | 6472 |
+|   30298    | 11398| 7595 |
+|  MT30212   | 883  | 656  |
+|  MT30269   | 7118 | 6287 |
+|  MT30271   | 6091 | 6835 |
+|  MT30273   | 3929 | 2769 |
+
+
+
+Selected samples (after filtering)    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 3976 | 5182 |
+|   30298    | 9620 | 6054 |
+|  MT30212   | 522  | 463  |
+|  MT30269   | 6185 | 5551 |
+|  MT30271   | 5602 | 6412 |
+|  MT30273   | 3031 | 1569 |
+
+
+Filtering  
+- doublet removal   
+- UMI : 500 < & < 20,000    
+- mt content <= 25    
+- ribosomal gene regression out    
+
+
+# Data   
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/'
+obj.srt =readRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+#obj.srt %>% saveRDS(paste0(dir,'rds/Takeda_6conditions.23.12.01.rds'))
+```
+
+
+Total number of cells: 54167    
+
+
+# Updated cell type annotation    
+
+```{r}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda/'
+anno = read.csv(paste0(dir, "info/condition_6_res.0.4_anno_Elena_sent.csv"))
+```
+
+
+resolution : RNA_snn_res.0.4 
+
+```{r}
+anno %>% DT::datatable(options = list(pageLength=length(unique(anno$cluster))), rownames = F)
+```
+
+
+
+```{r, eval=TRUE}
+obj.srt@meta.data$annotation = obj.srt@meta.data$RNA_snn_res.0.4 
+levels(obj.srt@meta.data$annotation) = anno$Proposed_cell_type
+```
+
+
+# UMAP  
+```{r,fig.width=6, fig.height=5}
+color= "annotation"
+DimPlot(obj.srt, group.by = "annotation", pt.size = 0.1)
+```
+
+```{r,fig.width=12, fig.height=4}
+color= "annotation"
+DimPlot(obj.srt, group.by = "annotation", pt.size = 0.1, ncol = 3, split.by = 'annotation')
+```
+
+# Cell number distribution   
+```{r}
+obj.srt@meta.data %>% select(annotation, sample) %>% table() %>% DT::datatable(rownames = F)
+```
+
+```{r}
+obj.srt@meta.data %>% select(annotation, sample, orig.ident) %>% table() %>% data.frame() %>% tidyr::spread(orig.ident,Freq) %>% DT::datatable()
+```
+
+
+```{r, eval=FALSE}
+celltypes_to_subset <- c("lymphoid", "mesenchymal", "myeloid")
+dir <- "~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+
+for (cell_type in celltypes_to_subset) {
+  subset_obj <- subset(obj.srt, annotation == cell_type)
+  rds_file <- file.path(dir, paste0("rds/obj.cond6_merged.3_conditions.", cell_type, ".rds"))
+  saveRDS(subset_obj, rds_file)
+}
+```
+
+
+
+```{r}
+dir <- "~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+obj.srt = readRDS(paste0(dir,"rds/obj.cond6_merged.lymphoid.rds"))
+```
+
+
+```{r, eval=FALSE}
+file_name= "obj.cond6_merged.lymphoid.rds"
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  ## Check ribosomal gene ratio and add ribosomal gene percentage
+  ribosomal_genes <- rownames(obj.srt)[grepl('^RP', rownames(obj.srt))]
+  obj.srt[["percent.ribo"]] <- PercentageFeatureSet(obj.srt, pattern = "^RP")
+  
+  ## Define variables in metadata to regress
+  vars_to_regress <- c('percent.ribo')
+  
+  # Step 2: Scale and normalize data
+  ## Regress out the uninteresting sources of variation in the data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(object = obj.srt, vars.to.regress = vars_to_regress, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,'rds/',file_name))
+```
+
+

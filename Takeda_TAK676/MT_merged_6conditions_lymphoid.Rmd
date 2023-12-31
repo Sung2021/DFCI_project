@@ -1,0 +1,698 @@
+---
+title: "Takeda PD1 + NK merged: Lymphoid"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: TRUE
+    toc_depth: 6
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, warning=FALSE, message=FALSE, results = 'asis')
+options(warn = F)
+```
+
+
+
+```{r, echo=TRUE}
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+```
+<br>
+<br>
+
+# Data Overview     
+
+Total 126229 cells from 6 samples 
+
+
+| orig.ident |  COM  | CTL  | NKC  | PEM  | TAK  |
+|------------|------|------|------|------|------|
+|   30293    | 4176 | 5058 | 7463 | 0    | 6472 |
+|   30298    | 8578 | 11398| 7131 | 0    | 7595 |
+|  MT30212   | 867  | 883  | 0    | 1005 | 656  |
+|  MT30269   | 4553 | 7118 | 0    | 10693| 6287 |
+|  MT30271   | 3646 | 6091 | 0    | 7853 | 6835 |
+|  MT30273   | 5173 | 3929 | 0    | 0    | 2769 |
+
+
+Selected samples    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 5058 | 6472 |
+|   30298    | 11398| 7595 |
+|  MT30212   | 883  | 656  |
+|  MT30269   | 7118 | 6287 |
+|  MT30271   | 6091 | 6835 |
+|  MT30273   | 3929 | 2769 |
+
+
+
+Selected samples (after filtering)    
+
+| orig.ident | CTL  | TAK  |
+|------------|------|------|
+|   30293    | 3976 | 5182 |
+|   30298    | 9620 | 6054 |
+|  MT30212   | 522  | 463  |
+|  MT30269   | 6185 | 5551 |
+|  MT30271   | 5602 | 6412 |
+|  MT30273   | 3031 | 1569 |
+
+
+Filtering  
+- doublet removal   
+- UMI : 500 < & < 20,000    
+- mt content <= 25    
+- ribosomal gene regression out    
+
+
+# Lymphoid Data   
+
+```{r}
+dir <- "~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+obj.srt = readRDS(paste0(dir,"rds/obj.cond6_merged.lymphoid.rds"))
+```
+
+## Number of Lymphoid cells  
+```{r}
+df1 =obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame()
+df2 =obj.srt@meta.data %>% select(orig.ident, sample) %>% table() %>% 
+  data.frame() %>% tidyr::spread(sample, Freq)
+df = cbind(df1, df2[,2:3])
+colnames(df)[1] = "Total"
+df %>% DT::datatable()
+```
+
+```{r, eval=FALSE}
+file_name= "obj.cond6_merged.lymphoid.rds"
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.1, 0.2, 0.4, 0.8,1), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, selection.method = 'vst', nfeatures = n_features)
+  
+  ## Check ribosomal gene ratio and add ribosomal gene percentage
+  ribosomal_genes <- rownames(obj.srt)[grepl('^RP', rownames(obj.srt))]
+  obj.srt[["percent.ribo"]] <- PercentageFeatureSet(obj.srt, pattern = "^RP")
+  
+  ## Define variables in metadata to regress
+  vars_to_regress <- c('percent.ribo')
+  
+  # Step 2: Scale and normalize data
+  ## Regress out the uninteresting sources of variation in the data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- ScaleData(object = obj.srt, vars.to.regress = vars_to_regress, features = all_genes)
+  obj.srt <- NormalizeData(obj.srt)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj.srt)
+obj.srt %>% saveRDS(paste0(dir,'rds/',file_name))
+```
+
+
+## UMAP    
+
+### Distribution of samples   
+```{r, fig.height=7, fig.width=8, out.width="60%"}
+DimPlot(obj.srt, group.by = "orig.ident", pt.size = 0.1)
+```
+
+```{r, fig.height=7, fig.width=12}
+DimPlot(obj.srt, group.by = "orig.ident", pt.size = 0.1, split.by = "orig.ident", ncol = 3)
+```
+
+### Distribution of Treatment   
+```{r, fig.height=7, fig.width=8, out.width="60%"}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1)
+```
+
+```{r, fig.height=7, fig.width=12, out.width="60%"}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1, split.by = "sample", ncol = 3)
+```
+
+
+### Distribution of samples splited by treatment   
+
+
+```{r, fig.height=7, fig.width=8, out.width="80%"}
+DimPlot(obj.srt, group.by = "sample", pt.size = 0.1, split.by = "orig.ident", ncol = 2)
+```
+
+## Clusters   
+
+```{r}
+resolution_values <- c(0.2, 0.4, 0.8, 1)
+```
+
+### Clusters with the resolution of 0.2  
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=1
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res)
+```
+
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=1
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+
+### Clusters with the resolution of 0.4  
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=2
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res)
+```
+
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=2
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+
+### Clusters with the resolution of 0.8  
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=3
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res)
+```
+
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=3
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+### Clusters with the resolution of 1  
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=4
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res)
+```
+
+```{r,fig.width=7, fig.height=6, out.width='60%'}
+i=4
+res= paste0("RNA_snn_res.", resolution_values[i])
+DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank()) 
+```
+
+
+# Composition of each cluster based on % of cells from each sample   
+
+## res 0.2  
+```{r, out.width="80%"}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+obj.srt@meta.data %>% ggplot(aes(!!sym(res), fill=orig.ident)) + geom_bar(position = 'fill') + theme_minimal()
+```
+
+## res 0.4  
+```{r, out.width="80%"}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+obj.srt@meta.data %>% ggplot(aes(!!sym(res), fill=orig.ident)) + geom_bar(position = 'fill') + theme_minimal()
+```
+
+## res 0.8  
+```{r, out.width="80%"}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+obj.srt@meta.data %>% ggplot(aes(!!sym(res), fill=orig.ident)) + geom_bar(position = 'fill') + theme_minimal()
+```
+
+## res 1  
+```{r, out.width="80%"}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+obj.srt@meta.data %>% ggplot(aes(!!sym(res), fill=orig.ident)) + geom_bar(position = 'fill') + theme_minimal()
+```
+
+
+# Marker genes based on clusters    
+```{r, eval=FALSE, echo=F}
+dir='~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/'
+# Find Markers based on cluster
+# Define function
+# Apply function
+find_and_save_markers <- function(obj.srt, cluster_id, logfc_threshold = 1.2, 
+                                  test_method = 'wilcox', min_percent = 0.25) {
+  Idents(obj.srt) = cluster_id
+  all.markers = FindAllMarkers(obj.srt, logfc.threshold = log2(logfc_threshold), 
+                               only.pos = TRUE, 
+                               test.use = test_method, min.pct = min_percent)
+  return(all.markers)
+}
+# apply:
+
+resolution_values <- c(0.2, 0.4, 0.8, 1)
+# Loop through each resolution value
+for (resolution_number in resolution_values) {
+  # Construct the resolution name
+  res <- paste0("RNA_snn_res.", resolution_number)
+  all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res, 
+                                   logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25)
+  output_file = paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv")
+  write.csv(all.markers, file = output_file, row.names = T)
+}
+```
+
+
+## 0.2  
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+```
+
+
+Download cluster marker file
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+## 0.4  
+
+Download cluster marker file
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+
+
+## 0.8  
+
+Download cluster marker file
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+len =length(levels(obj.srt@meta.data[,res]))
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+
+
+## 1  
+
+Download cluster marker file
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len))
+```
+
+
+# Heatmaps    
+
+
+## 0.2  
+
+```{r}
+dir="~/Desktop/DF/DFCI_Paweletz/2023_Takeda_PD1_NK/"
+```
+
+
+```{r}
+resolution_number = 0.2
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=12, fig.height=12}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 0.4  
+
+```{r}
+resolution_number = 0.4
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=14, fig.height=14}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 0.8  
+
+```{r}
+resolution_number = 0.8
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=16, fig.height=20}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 8))
+```
+
+
+## 1  
+
+
+```{r}
+resolution_number = 1
+res= paste0("RNA_snn_res.", resolution_number)
+mks = read.csv(paste0(dir,"data/mks/Merge6_lymphoid_", res, ".markers.csv"), row.names = 1)
+genes = mks %>% group_by(cluster) %>% top_n(5, avg_log2FC) %>% select(gene) %>% pull()
+```
+
+```{r, fig.width=22, fig.height=28}
+Idents(obj.srt) = res
+DoHeatmap(obj.srt, features = genes) +theme(text = element_text(size = 10))
+```
+
+<br><br>
+
+# CD8A+ population in dataset   
+
+
+```{r}
+genes = c("CD8A")
+FeaturePlot(obj.srt, features = genes)
+```
+
+
+```{r}
+# update gene information to meta data
+update_gene_Status <- function(obj, g) {
+  exp <- obj@assays$RNA@data[g, ]
+  
+  # Assuming that 'CD8A' is already a column in 'obj@meta.data'
+  obj@meta.data[, g] <- exp
+  
+  # Create a new column 'CD8A_pos' based on the expression level of CD8A
+  obj@meta.data <- obj@meta.data %>%
+    mutate(!!paste0(g, "_pos") := ifelse(.data[[g]] > 0, paste(g, "+"), paste(g, "-")))
+  
+  return(obj)
+}
+# Example usage:
+obj.srt <- update_gene_Status(obj.srt, 'CD8A')
+```
+
+
+
+
+```{r}
+## CD8A+ population in UMAP   
+#DimPlot(obj.srt, group.by = "CD8A_pos", cols = c("grey","red"))
+```
+
+
+```{r, eval=FALSE}
+DimPlot(obj.srt, group.by = "CD8A_pos", cols = c("grey","red"), 
+        split.by = 'orig.ident', ncol = 3)
+```
+
+```{r,fig.width=8, fig.height=8}
+obj.srt@meta.data$sample_treatment = paste0(obj.srt@meta.data$orig.ident,"_", obj.srt@meta.data$sample)
+# DimPlot(obj.srt, group.by = "CD8A_pos", cols = c("grey","red"), 
+#         split.by = 'sample_treatment', ncol = 4)
+```
+
+
+
+```{r}
+## CD8A+ population ratio    
+group = "sample_treatment"
+gene_variable = "CD8A_pos"
+# obj.srt@meta.data %>% ggplot(aes(!!sym(group), fill=!!sym(gene_variable))) + 
+#   geom_bar(position = 'fill') + theme_minimal() + 
+#   scale_fill_manual(values = c("#F4F6F6","#EC7063")) +
+#   RotatedAxis()
+```
+
+
+```{r}
+## Effector T cell related gene expression in CD8A+ population   
+
+# Assuming 'CD8A_pos' is a column in obj.srt@meta.data
+CD8A_positive_cells <- obj.srt@meta.data %>%
+  filter(CD8A_pos == "CD8A +")
+
+# Subset obj.srt to include only CD8A+ cells
+obj_srt_CD8A_positive <- subset(obj.srt, cells = rownames(CD8A_positive_cells))
+
+# Create the violin plot
+# VlnPlot(obj_srt_CD8A_positive, features = c("GZMA", "GZMB","GZMH","NKG7"), 
+#         group.by = "sample_treatment", stack = TRUE, flip = TRUE)
+
+```
+
+
+## IFNG-related gene expression in CD8A+ population   
+```{r, fig.width=8, fig.height=8}
+# Create the violin plot
+VlnPlot(obj_srt_CD8A_positive, features = c("IFNG","IFI44","IFIT2","IFIT3","ISG15", "ISG20"), 
+        group.by = "sample_treatment", stack = TRUE, flip = TRUE)
+
+```
+
+
+
+```{r, eval=FALSE}
+genes = c("CD79A", "CD4","CD8A","NCAM1","NCAM2","FCGR3A","FCGR3B", "CD3E","CD3D")
+FeaturePlot(obj.srt, features = genes, pt.size = 0.1, ncol = 3)
+
+```
+
+
+```{r, fig.width=8, fig.height=8, eval=FALSE}
+## Tem, Trm related gene expression in CD8A+ population   
+
+genes=c("CCR7","SELL","PTPRC","CCR5","CD27","CD44","IL7R","EOMES",
+        "CD69","ITGAE","CXCR6","CD4")
+# Create the violin plot
+VlnPlot(obj_srt_CD8A_positive, features = genes, 
+        group.by = "sample_treatment", stack = TRUE, flip = TRUE)
+# CD69 is increased by TAK treatment.   
+# 
+# (https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10010323/)    
+
+```
+
+
+
+## Requested   
+```{r, fig.width=8, fig.height=12}
+# New order for plotting
+obj_srt_CD8A_positive@meta.data$grp_order = factor(obj_srt_CD8A_positive@meta.data$sample_treatment)
+levels(obj_srt_CD8A_positive@meta.data$grp_order) =c("MT30212_CTL", "MT30212_TAK",
+                                                     "MT30271_CTL", "MT30271_TAK",
+                                                     "MT30269_CTL", "MT30269_TAK",
+                                                     "MT30273_CTL", "MT30273_TAK",
+                                                     "30293_CTL", "30293_TAK",
+                                                     "30298_CTL","30298_TAK")
+genes <- c("TIGIT", "LAG3", "ATM", "COX6B1", "PNRC1", "TUBB", "ACTB", "GAPDH")
+# Create the violin plot
+VlnPlot(obj_srt_CD8A_positive, features = genes, 
+        group.by = "grp_order", stack = TRUE, flip = TRUE)
+```
+
+
+```{r, fig.width=8, fig.height=16}
+ids = c("MT30212_CTL","MT30271_CTL","MT30269_CTL","MT30273_CTL","30293_CTL","30298_CTL")
+Idents(obj_srt_CD8A_positive) = "sample_treatment"
+obj.sub = subset(obj_srt_CD8A_positive, idents = ids)
+genes <- c("PTPRC", "CD3E", "CD3D", "CD8B", "CD2", "FYN", "CD28", "ITGAL", "RABGAP1L", "GBP4", "GBP2", "SOD2", "STK17A", "CD84", "CD99")
+VlnPlot(obj.sub, features = genes, 
+        group.by = "grp_order", stack = TRUE, flip = TRUE)
+```
+
+
+
+```{r, eval=FALSE}
+# Comparison in CD8+T population   
+
+## TAK / CTL   
+obj = obj_srt_CD8A_positive
+Idents(obj) = 'sample'
+logfc=log2(1)
+mks =FindMarkers(obj, ident.1 = 'TAK', ident.2 = 'CTL', 
+                 logfc.threshold = logfc)
+pval=0.05
+fc=1.2
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+
+mks = mks %>% mutate(color = ifelse(is.na(p_val_adj), "no_sig",
+                                    ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                             avg_log2FC >= log2(1.2), "UP", 
+                                           ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                                    avg_log2FC <= -log2(1.2), "DN", "no_sig"))))
+mks$color = factor(mks$color, levels = c("UP","DN","no_sig"))
+
+# Volcanoplot 
+mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color=color)) + 
+  geom_point(size=1, alpha=0.5) + theme_classic() + 
+  ggtitle("TAK / CTL")+
+  scale_color_manual(values = c("red","blue",'grey')) +
+  geom_vline(xintercept = c(-log2(1.2), log2(1.2)), color='red') +
+  geom_hline(yintercept = -log10(0.05), color='blue') + theme_classic() 
+mks.all = mks
+```
+
+
+
+```{r, eval=FALSE}
+## R / NR in all   
+obj_srt_CD8A_positive$response = factor(obj_srt_CD8A_positive$orig.ident)
+levels(obj_srt_CD8A_positive$response) = c("NR","NR","R","NR","R","NR")
+
+obj = obj_srt_CD8A_positive
+
+Idents(obj) = 'response'
+logfc=log2(1)
+mks =FindMarkers(obj, ident.1 = 'R', ident.2 = 'NR', 
+                 logfc.threshold = logfc, test.use="DESeq2")
+pval=0.05
+fc=1.2
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+
+mks = mks %>% mutate(color = ifelse(is.na(p_val_adj), "no_sig",
+                                    ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                             avg_log2FC >= log2(1.2), "UP", 
+                                           ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                                    avg_log2FC <= -log2(1.2), "DN", "no_sig"))))
+mks$color = factor(mks$color, levels = c("UP","DN","no_sig"))
+mks.rnr = mks
+# Volcanoplot 
+mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color=color)) + 
+  geom_point(size=1, alpha=0.5) + theme_classic() + 
+  ggtitle("R / NR")+
+  scale_color_manual(values = c("red","blue",'grey')) +
+  geom_vline(xintercept = c(-log2(1.2), log2(1.2)), color='red') +
+  geom_hline(yintercept = -log10(0.05), color='blue') + theme_classic() 
+
+
+```
+
+
+
+```{r, eval=FALSE}
+## R / NR in CTL   
+obj_srt_CD8A_positive$response = factor(obj_srt_CD8A_positive$orig.ident)
+levels(obj_srt_CD8A_positive$response) = c("NR","NR","R","NR","R","NR")
+
+Idents(obj_srt_CD8A_positive) = "sample"
+obj = subset(obj_srt_CD8A_positive, idents="CTL")
+
+Idents(obj) = 'response'
+logfc=log2(1)
+mks =FindMarkers(obj, ident.1 = 'R', ident.2 = 'NR', 
+                 logfc.threshold = logfc)
+pval=0.05
+fc=1.2
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+
+mks = mks %>% mutate(color = ifelse(is.na(p_val_adj), "no_sig",
+                                    ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                             avg_log2FC >= log2(1.2), "UP", 
+                                           ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                                    avg_log2FC <= -log2(1.2), "DN", "no_sig"))))
+mks$color = factor(mks$color, levels = c("UP","DN","no_sig"))
+
+# Volcanoplot 
+mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color=color)) + 
+  geom_point(size=1, alpha=0.5) + theme_classic() + 
+  ggtitle("R / NR")+
+  scale_color_manual(values = c("red","blue",'grey')) +
+  geom_vline(xintercept = c(-log2(1.2), log2(1.2)), color='red') +
+  geom_hline(yintercept = -log10(0.05), color='blue') + theme_classic() 
+
+mks.ctl = mks
+```
+
+
+```{r, eval=FALSE}
+## R / NR in TAK   
+obj_srt_CD8A_positive$response = factor(obj_srt_CD8A_positive$orig.ident)
+levels(obj_srt_CD8A_positive$response) = c("NR","NR","R","NR","R","NR")
+
+Idents(obj_srt_CD8A_positive) = "sample"
+obj = subset(obj_srt_CD8A_positive, idents="TAK")
+
+Idents(obj) = 'response'
+logfc=log2(1)
+mks =FindMarkers(obj, ident.1 = 'R', ident.2 = 'NR', 
+                 logfc.threshold = logfc)
+pval=0.05
+fc=1.2
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+
+mks = mks %>% mutate(color = ifelse(is.na(p_val_adj), "no_sig",
+                                    ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                             avg_log2FC >= log2(1.2), "UP", 
+                                           ifelse(log10(p_val_adj) <= log10(0.05) & 
+                                                    avg_log2FC <= -log2(1.2), "DN", "no_sig"))))
+mks$color = factor(mks$color, levels = c("UP","DN","no_sig"))
+mks.tak = mks
+# Volcanoplot 
+mks %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color=color)) + 
+  geom_point(size=1, alpha=0.5) + theme_classic() + 
+  ggtitle("R / NR")+
+  scale_color_manual(values = c("red","blue",'grey')) +
+  geom_vline(xintercept = c(-log2(1.2), log2(1.2)), color='red') +
+  geom_hline(yintercept = -log10(0.05), color='blue') + theme_classic() 
+
+
+```
+
+
