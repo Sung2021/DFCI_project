@@ -1,3 +1,5 @@
+# https://satijalab.org/seurat/articles/integration_introduction.html#perform-integration
+
 obj.srt@meta.data[1:3,]
 obj.srt$intgr_set= paste0(obj.srt$orig.ident,"_",obj.srt$sample)
 
