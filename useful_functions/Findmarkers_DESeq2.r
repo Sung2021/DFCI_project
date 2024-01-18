@@ -67,3 +67,35 @@ mks %>%
   guides(colour = guide_legend(override.aes = list(size=5))) +
   ggtitle("Resist/Naive") +
   ggeasy::easy_center_title() ## to center title
+
+
+
+# 다른 버전 
+Idents(obj.tmp) = 'GT_intgrset'
+logfc=log2(1)
+g1 = "UE_CD47_2 hr"
+g2 = "UE_CD47_2 WEEK"
+mks.myeloid.UE.time =FindMarkers(obj.tmp, ident.1 = g2, ident.2 = g1, 
+                 logfc.threshold = logfc, test.use = "DESeq2", min.pct = 0.25, min.diff.pct = 0.25)
+
+mks = mks.myeloid.UE.time
+pval=0.05
+fc=1.2
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+mks$DE %>% table()
+
+
+mks$avg_log2FC = mks$avg_log2FC -log2(fc)
+mks = mks %>% mutate(DE=ifelse(avg_log2FC >= log2(fc) & p_val_adj < pval, 'UP',
+                               ifelse(avg_log2FC <= -log2(fc) & p_val_adj < pval, 'DN','no_sig')))
+mks$DE = factor(mks$DE, levels = c('UP','DN','no_sig'))
+mks  %>% ggplot(aes(avg_log2FC, -log10(p_val_adj), color = DE)) + 
+  geom_point(size = 1, alpha = 0.5) + 
+  scale_color_manual(values = c('red', 'blue', 'grey')) +
+  theme_classic() +
+  geom_vline(xintercept = c(-log2(fc), log2(fc)), color = 'grey') +
+  geom_hline(yintercept = -log10(0.05), color = 'grey') +
+  guides(colour = guide_legend(override.aes = list(size = 5))) +
+  ggeasy::easy_center_title() ## to center title
