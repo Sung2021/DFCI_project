@@ -8,8 +8,8 @@ perform_default_analysis <- function(obj.srt, n_features = 3000, n_pcs = 30,
   
   # Step 2: Scale and normalize data
   all_genes <- rownames(obj.srt)
-  obj.srt <- ScaleData(obj.srt, features = all_genes)
   obj.srt <- NormalizeData(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
   
   # Step 3: Run PCA
   obj.srt <- RunPCA(obj.srt, features = VariableFeatures(object = obj.srt), npcs = n_pcs)
