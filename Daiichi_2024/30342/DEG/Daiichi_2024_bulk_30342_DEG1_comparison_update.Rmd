@@ -1,0 +1,200 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: show 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+30342
+
+## DEGs comparison (by Adjusted p value){.tabset}
+
+  * Dxd/DMSO
+  * IgG-Dxd/DMSO
+  * DS-1062a/DMSO<br>
+  
+  
+```{r}
+res1 = read.csv(paste0(dir,"data/30342/res1.24.06.25.csv"), row.names = 1)
+res2 = read.csv(paste0(dir,"data/30342/res2.24.06.25.csv"), row.names = 1)
+res3 = read.csv(paste0(dir,"data/30342/res3.24.06.25.csv"), row.names = 1)
+res.all = list(res1=res1,
+               res2=res2,
+               res3=res3)
+degs = res.all
+```
+
+
+```{r}
+# Add DE information 
+names(degs) = c("Dxd/DMSO",
+                "IgG-Dxd/DMSO",
+                "DS-1062a/DMSO")
+```
+
+### UP-regulated genes 
+
+```{r}
+column <- "DE_padj"
+
+# Extract gene names labeled as 'UP' into a new list
+up_genes <- lapply(degs, function(df) {
+  df$gene <- rownames(df)
+  df %>% filter(!!sym(column) == "UP") %>% select(gene) %>% pull()
+})
+```
+
+
+```{r}
+ven_list = up_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+### DN-regulated genes 
+```{r}
+column = "DE_padj"
+# 'DN'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(!!sym(column) == "DN") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+
+## DEGs comparison (by p value){.tabset}
+
+  * Dxd/DMSO
+  * IgG-Dxd/DMSO
+  * DS-1062a/DMSO<br>
+  
+### UP-regulated genes 
+
+```{r}
+column <- "DE_pvalue"
+
+# Extract gene names labeled as 'UP' into a new list
+up_genes <- lapply(degs, function(df) {
+  df$gene <- rownames(df)
+  df %>% filter(!!sym(column) == "UP") %>% select(gene) %>% pull()
+})
+```
+
+
+```{r}
+ven_list = up_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+### DN-regulated genes 
+```{r}
+column = "DE_pvalue"
+# 'DN'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(!!sym(column) == "DN") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```

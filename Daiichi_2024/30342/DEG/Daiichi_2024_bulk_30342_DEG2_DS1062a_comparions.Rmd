@@ -1,0 +1,521 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: show 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30342/star30342_rawData.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# rename column names 
+colnames(counts)= sub("_Count", "", colnames(counts))
+rownames(counts) = counts$SYMBOL
+counts = counts[,-1]
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+```
+
+
+```{r}
+tpms = count_TPM_matrix_all$TPM
+
+# rename column names 
+colnames(tpms)= sub("_TPM", "", colnames(tpms))
+rownames(tpms) = tpms$SYMBOL
+tpms = tpms[,-1]
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+```
+
+## DEG analysis
+
+  * DS-1062a/Dxd
+  * DS-1062a/IgG-Dxd
+
+### DS-1062a vs Dxd {.tabset}
+
+```{r}
+library(DESeq2)
+count.mtx = counts
+cont = "Dxd"
+tret = "DS1062a"
+cols = c(c(4:6), c(10:12))
+cond = c(rep(cont,3),
+         rep(tret,3))
+count.mtx = count.mtx[, cols]
+# Generate info table
+info <- data.frame(matrix(nrow = ncol(count.mtx), ncol = 2))
+colnames(info) <- c('sample', 'cond')
+info$sample <- colnames(count.mtx)
+info$cond <- cond
+
+# DESeq
+dds <- DESeqDataSetFromMatrix(count.mtx, info, ~ cond)
+dds <- DESeq(dds)
+res <- results(dds)
+
+res <- data.frame(res)
+res4 <- res
+```
+
+#### Volcano plot (version1)
+```{r}
+fc = 1.5
+pval = 0.05
+
+add_DE_information <- function(res, fc = 1.5, pval = 0.05) {
+  # Create DE_padj based on the padj column if it exists
+  if ('padj' %in% colnames(res)) {
+    res <- res %>% 
+      mutate(DE_padj = ifelse(log2FoldChange >= log2(fc) & padj < pval, 'UP',
+                              ifelse(log2FoldChange <= -log2(fc) & padj < pval, 'DN', 'no_sig')))
+    
+    res$DE_padj <- factor(res$DE_padj, levels = c('UP', 'DN', 'no_sig'))
+  }
+  
+  # Create DE_pvalue based on the pvalue column if it exists
+  if ('pvalue' %in% colnames(res)) {
+    res <- res %>% 
+      mutate(DE_pvalue = ifelse(log2FoldChange >= log2(fc) & pvalue < pval, 'UP',
+                                ifelse(log2FoldChange <= -log2(fc) & pvalue < pval, 'DN', 'no_sig')))
+    
+    res$DE_pvalue <- factor(res$DE_pvalue, levels = c('UP', 'DN', 'no_sig'))
+  }
+  
+  return(res)
+}
+
+res4 = add_DE_information(res = res4)
+
+res4 %>% 
+  ggplot(aes(log2FoldChange, -log10(padj))) + 
+  geom_point(size=1, alpha=0.5) + 
+  scale_color_manual(values = c("red3","royalblue3","grey"), guide = FALSE) +
+  theme_classic() +
+  geom_vline(xintercept = c(-log2(fc),log2(fc)), color='grey') +
+  geom_hline(yintercept = -log10(pval),color='grey') 
+
+```
+
+#### Volcano plot (version2)
+```{r}
+plot_DE_information <- function(res, fc = 1.5, pval = 0.05, p_col = 'padj') {
+  # Check if the provided p_col exists in the dataframe
+  if (!(p_col %in% colnames(res))) {
+    stop(paste("The column", p_col, "does not exist in the dataframe"))
+  }
+  
+  # Create DE column based on the provided p_col
+  if (p_col == 'padj') {
+    res <- res %>% 
+      mutate(DE_padj = ifelse(log2FoldChange >= log2(fc) & padj < pval, 'UP',
+                              ifelse(log2FoldChange <= -log2(fc) & padj < pval, 'DN', 'no_sig')))
+    res$DE_padj <- factor(res$DE_padj, levels = c('UP', 'DN', 'no_sig'))
+    df <- res$DE_padj %>% table() %>% data.frame()
+    up <- df[,2][1]
+    dn <- df[,2][2]
+    y_col <- 'padj'
+    de_col <- 'DE_padj'
+  } else if (p_col == 'pvalue') {
+    res <- res %>% 
+      mutate(DE_pvalue = ifelse(log2FoldChange >= log2(fc) & pvalue < pval, 'UP',
+                                ifelse(log2FoldChange <= -log2(fc) & pvalue < pval, 'DN', 'no_sig')))
+    res$DE_pvalue <- factor(res$DE_pvalue, levels = c('UP', 'DN', 'no_sig'))
+    df <- res$DE_pvalue %>% table() %>% data.frame()
+    up <- df[,2][1]
+    dn <- df[,2][2]
+    y_col <- 'pvalue'
+    de_col <- 'DE_pvalue'
+  } else {
+    stop("Invalid p_col value. Use 'padj' or 'pvalue'.")
+  }
+
+  # Create the plot
+  p <- res %>%
+    ggplot(aes(log2FoldChange, -log10(get(y_col)), color=get(de_col))) + 
+    geom_point(size=0.5, shape=19, alpha=0.7) +
+    geom_vline(xintercept = c(-log2(fc), log2(fc)), size=0.1, color="grey88") +
+    geom_hline(yintercept = -log10(pval), size=0.1) +
+    scale_color_manual(values = c("red3","royalblue3","grey"), guide = FALSE) +
+    theme_bw() +
+    annotate("text", x = Inf, y = Inf, label = paste0("UP: ", up), 
+             hjust = 1.1, vjust = 2, size = 5, color = "red") +
+    annotate("text", x = -Inf, y = Inf, label = paste0("DN: ", dn), 
+             hjust = -0.1, vjust = 2, size = 5, color = "royalblue") +
+    theme_bw() +
+    ylab(paste0("log10", "(",p_col, ")"))
+  
+  return(p)
+}
+
+plot_DE_information(res4, fc = 1.5, pval = 0.05, p_col = 'padj')
+plot_DE_information(res4, fc = 1.5, pval = 0.05, p_col = 'pvalue')
+
+```
+
+#### Volcano plot (version3)
+```{r}
+p1 = plot_DE_information(res4, fc = 1.5, pval = 0.05, p_col = 'padj')
+
+p2 = plot_DE_information(res4, fc = 1.5, pval = 0.05, p_col = 'pvalue')
+
+p1 + scale_y_sqrt()
+p2 + scale_y_sqrt()
+```
+
+
+#### DEG table
+```{r}
+res4 %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+```
+
+```{r}
+library(clusterProfiler)
+hallmark <- msigdbr::msigdbr(species = "Homo sapiens", category = "H") %>% 
+  dplyr::select(gs_name, gene_symbol)
+
+perform_GSEA <- function(res, ref, pvalueCutoff = 1) {
+  ranking <- function(res) {
+    df <- res$log2FoldChange
+    names(df) <- rownames(res)
+    df <- sort(df, decreasing = TRUE)
+    return(df)
+  }
+  
+  ranked.res <- ranking(res)
+  set.seed(123)
+  x <- clusterProfiler::GSEA(geneList = ranked.res,
+                             TERM2GENE = ref,
+                             pvalueCutoff = pvalueCutoff,
+                             pAdjustMethod = "BH",
+                             verbose = TRUE,
+                             seed = TRUE)
+  
+  result <- x@result %>% arrange(desc(NES))
+  result <- result[, c('NES', 'pvalue', 'p.adjust', 'core_enrichment', 'ID')]
+  return(result)
+}
+
+# Modified GSEA NES plot 
+gsea_nes_plot =function(gsea.res, title, fontsize.x = 5, fontsize.y = 6){
+  gsea.res %>% ggplot(aes(reorder(ID, NES), NES)) +
+    geom_col(aes(fill=sig), color="grey1", size=0.2) +
+    coord_flip() +
+    labs(x="Pathway", y="Normalized Enrichment Score",
+         title= "GSEA") + 
+    theme_classic() +
+    # scale_fill_gradient(low = '#FF0000', high = '#E5E7E9') +
+    scale_fill_manual(values = c("#FF0000","grey88")) +
+    theme(axis.text.x= element_text(size=fontsize.x, face = 'bold'),
+          axis.text.y= element_text(size=fontsize.y, face = 'bold'), 
+          axis.title =element_text(size=10)) +ggtitle(title)
+}
+
+# Modified GSEA NES plot (p value color version) 
+gsea_nes_plot_pval =function(gsea.res, title, fontsize.x = 5, fontsize.y = 6){
+  gsea.res %>% ggplot(aes(reorder(ID, NES), NES)) +
+  geom_col(aes(fill=-pvalue), color="grey1", size=0.2) +
+  coord_flip() +
+  labs(x="Pathway", y="Normalized Enrichment Score",
+       title= "GSEA") + 
+  theme_classic() +
+  # scale_fill_gradient(low = '#FF0000', high = '#E5E7E9') +
+  scale_fill_gradient(low = "grey88",high ="#FF0000" ) +
+  theme(axis.text.x= element_text(size=fontsize.x, face = 'bold'),
+        axis.text.y= element_text(size=fontsize.y, face = 'bold'), 
+        axis.title =element_text(size=10),
+        legend.title = element_blank()) +ggtitle(title)
+}
+
+
+# Application 
+gsea.res4 = perform_GSEA(res = res4, ref = hallmark) 
+
+filtered_gsea4 = gsea.res4 %>% mutate(sig= ifelse(pvalue <= 0.05,"p value <= 0.05", "p value > 0.05"))
+```
+
+#### GSEA NES Plot 1
+```{r, fig.width=8, fig.height=7}
+t= paste0("DEGs from ",tret, " / ", cont )
+
+gsea_nes_plot_pval(filtered_gsea4, title = t, fontsize.x = 8, fontsize.y = 8)
+```
+
+#### GSEA NES Plot 2
+```{r, fig.width=8, fig.height=7}
+t= paste0("DEGs from ",tret, " / ", cont )
+
+gsea_nes_plot(filtered_gsea4, title = t, fontsize.x = 8, fontsize.y = 8)
+```
+
+### DS-1062a vs IgG {.tabset}
+
+```{r}
+library(DESeq2)
+count.mtx = counts
+cont = "IgG"
+tret = "DS1062a"
+cols = c(c(7:9), c(10:12))
+cond = c(rep(cont,3),
+         rep(tret,3))
+count.mtx = count.mtx[, cols]
+# Generate info table
+info <- data.frame(matrix(nrow = ncol(count.mtx), ncol = 2))
+colnames(info) <- c('sample', 'cond')
+info$sample <- colnames(count.mtx)
+info$cond <- cond
+
+# DESeq
+dds <- DESeqDataSetFromMatrix(count.mtx, info, ~ cond)
+dds <- DESeq(dds)
+res <- results(dds)
+
+res <- data.frame(res)
+res5 <- res
+```
+
+#### Volcano plot (version1)
+```{r}
+res5 = add_DE_information(res = res5)
+
+res5 %>% 
+  ggplot(aes(log2FoldChange, -log10(padj))) + 
+  geom_point(size=1, alpha=0.5) + 
+  scale_color_manual(values = c("red3","royalblue3","grey"), guide = FALSE) +
+  theme_classic() +
+  geom_vline(xintercept = c(-log2(fc),log2(fc)), color='grey') +
+  geom_hline(yintercept = -log10(pval),color='grey') 
+```
+
+#### Volcano plot (version2)
+```{r, fig.width=8, fig.height=5}
+plot_DE_information(res5, fc = 1.5, pval = 0.05, p_col = 'padj')
+plot_DE_information(res5, fc = 1.5, pval = 0.05, p_col = 'pvalue')
+```
+
+#### Volcano plot (version3)
+```{r, fig.width=8, fig.height=5}
+
+p1 = plot_DE_information(res5, fc = 1.5, pval = 0.05, p_col = 'padj')
+
+p2 = plot_DE_information(res5, fc = 1.5, pval = 0.05, p_col = 'pvalue')
+
+p1 + scale_y_sqrt()
+p2 + scale_y_sqrt()
+```
+
+
+#### DEG table
+```{r}
+res5 %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+```
+
+
+```{r}
+# Application 
+gsea.res5 = perform_GSEA(res = res5, ref = hallmark) 
+
+filtered_gsea5 = gsea.res5 %>% mutate(sig= ifelse(pvalue <= 0.05,"p value <= 0.05", "p value > 0.05"))
+```
+
+#### GSEA NES Plot 1
+```{r, fig.width=8, fig.height=7}
+t= paste0("DEGs from ",tret, " / ", cont )
+
+gsea_nes_plot_pval(filtered_gsea5, title = t, fontsize.x = 8, fontsize.y = 8)
+```
+
+#### GSEA NES Plot 2
+```{r, fig.width=8, fig.height=7}
+t= paste0("DEGs from ",tret, " / ", cont )
+
+gsea_nes_plot(filtered_gsea5, title = t, fontsize.x = 8, fontsize.y = 8)
+```
+
+## DEGs comparison (by Adjusted p value){.tabset}
+
+### UP-regulated genes
+
+```{r}
+# Read res list
+degs = list(res4=res4,
+            res5=res5)
+names(degs) = c("DS-1062a/Dxd",
+                "DS-1062a/IgG-Dxd")
+```
+
+```{r}
+column = "DE_padj"
+# 'UP'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(!!sym(column) == "UP") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out)
+```
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+### DN-regulated genes
+```{r}
+column = "DE_padj"
+# 'DN'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(!!sym(column) == "DN") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out)
+```
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+```{r}
+## save res files
+res4 %>% write.csv(paste0(dir,"data/30342/res4.24.06.25.csv"))
+res5 %>% write.csv(paste0(dir,"data/30342/res5.24.06.25.csv"))
+```
+
+
+## DEGs comparison (by p value){.tabset}
+
+### UP-regulated genes 
+
+```{r}
+column <- "DE_pvalue"
+
+# Extract gene names labeled as 'UP' into a new list
+up_genes <- lapply(degs, function(df) {
+  df$gene <- rownames(df)
+  df %>% filter(!!sym(column) == "UP") %>% select(gene) %>% pull()
+})
+```
+
+
+```{r}
+ven_list = up_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+### DN-regulated genes 
+```{r}
+column = "DE_pvalue"
+# 'DN'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(!!sym(column) == "DN") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out) 
+```
+
+```{r}
+plot(ven_out, type = "upset") 
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
