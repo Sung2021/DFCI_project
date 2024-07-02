@@ -1,0 +1,140 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: show 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30348/star_readspergeneoutP30348.rawData.count.tpm.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() 
+```
+
+
+```{r}
+tpms = count_TPM_matrix_all$tpm
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+# tpms %>% nrow() 
+```
+
+
+## DEGs comparison {.tabset}
+```{r}
+res.all = readRDS(paste0(dir, "data/DMSO_3_comparison_res.all_30348.rds"))
+degs = res.all
+```
+
+```{r}
+# Add DE information 
+fc = 1.2
+pval = 0.05
+degs <- lapply(degs, function(df) {
+  df %>% mutate(DE = ifelse(log2FoldChange >= log2(fc) & pvalue < pval, 'UP',
+                            ifelse(log2FoldChange <= -log2(fc) & pvalue < pval, 'DN', 'no_sig'))) %>%
+    mutate(DE = factor(DE, levels = c('UP', 'DN', 'no_sig')))
+})
+names(degs) = c("Dxd/DMSO",
+                "IgG-Dxd/DMSO",
+                "DS-1062a/DMSO")
+```
+
+### UP-regulated genes
+```{r}
+# 'UP'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(DE == "UP") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out)
+```
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
+
+
+### DN-regulated genes
+```{r}
+# 'DN'으로 표시된 유전자 이름을 추출하여 새로운 리스트 생성
+selected_genes <- lapply(degs, function(df) {
+  df %>% filter(DE == "DN") %>% rownames()
+})
+
+# degs 리스트의 각 요소와 동일한 이름을 새 리스트에 할당
+names(selected_genes) <- names(degs)
+```
+
+```{r}
+ven_list = selected_genes
+
+## draw venn diagram
+ven_out <- VennDetail::venndetail(ven_list)
+```
+
+```{r}
+plot(ven_out)
+```
+
+```{r}
+plot(ven_out, type = "upset")
+```
+
+```{r}
+ven_out@result %>% DT::datatable()
+```
