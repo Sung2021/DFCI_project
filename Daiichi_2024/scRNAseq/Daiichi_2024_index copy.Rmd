@@ -1,0 +1,296 @@
+---
+title: "2024 Daiichi DXD"
+subtitle: "scRNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+# Introduction
+
+Paweletz lab\
+2024.05.06\
+<br>
+
+```{r}
+# Create data frame
+df <- tibble::tribble(
+  ~Directory,                                      ~Sample_ID, ~Treatment,
+  "belferstorage\\10X\\Daichii_DXD\\30342",       "30342M",   "DMSO",
+  "belferstorage\\10X\\Daichii_DXD\\30342",       "30342D",   "Dxd",
+  "belferstorage\\10X\\Daichii_DXD\\30342",       "30342I",   "IgG DxD",
+  "belferstorage\\10X\\Daichii_DXD\\30342",       "30342A",   "DS1062a",
+  "belferstorage\\10X\\Daichii_DXD\\30348",       "30348M",   "DMSO",
+  "belferstorage\\10X\\Daichii_DXD\\30348",       "30348D",   "Dxd",
+  "belferstorage\\10X\\Daichii_DXD\\30348",       "30348I",   "IgG DxD",
+  "belferstorage\\10X\\Daichii_DXD\\30348",       "30348A",   "DS1062a"
+)
+
+df %>% DT::datatable()
+```
+
+**single cell RNA-seq**   
+<br>
+
+1. **Study Population**   
+
+-   **Patient Group:** Non-Small Cell Lung Cancer (NSCLC) patients   
+-   **Cell Population:** TROP2-high expressing cells (MFI 45080)   
+-   **Tumor Microenvironment:** Includes TROP2-expressing cancer cells   
+    and various other cell types   
+-   **Cancer Cells sorting:** Using EPCAM and TROP2 markers (flow
+    cytometry)   
+<br>
+
+2. **Experimental Conditions**  
+
+- **Patient Groups:** 30342 and 30348  
+- **Treatment Conditions:**  
+  - **M (Control):** DMSO  
+  - **D:** Dxd (deruxtecan, topoisomerase inhibitor) 1 µM  
+  - **I:** IgG Dxd (non-specific gene-targeting Dxd) 30 µg/ml  
+  - **A:** DS-1062a (datopotamab deruxtecan, TROP2-targeting Dxd) 30 µg/ml
+- **Treatment Duration:** 24 hours  
+
+
+3. **Sequencing Details**  
+
+- **Target Sample for Sequencing:** S1 (> 100 µm)  
+  - Includes tumor microenvironment with multiple cell types  
+
+<br>
+
+### Summary Table
+
+| Patient Group | Control(M) | Treatment D | Treatment I      | Treatment A       |
+|--------------|---------|-------------|------------------|-------------------|
+| **30342**    | DMSO    | Dxd 1 µM    | IgG Dxd 30 µg/ml | DS-1062a 30 µg/ml |
+| **30348**    | DMSO    | Dxd 1 µM    | IgG Dxd 30 µg/ml | DS-1062a 30 µg/ml |
+
+<br>
+
+### Fastq file backup  
+(as of 2024.06.10)  
+DFCI : /mnt/centers/bxdx/srp68/raw_data/Daiichi_DS1062a_scRNAseq_2024/  
+
+| location | file                          |
+|----------|-------------------------------|
+| 30342    | 342A_S5_L001_I1_001.fastq     |
+| 30342    | 342A_S5_L001_I2_001.fastq     |
+| 30342    | 342A_S5_L001_R2_001.fastq     |
+| 30342    | 342A_S5_L001_R1_001.fastq     |
+| 30342    | 342D_S3_L001_R2_001.fastq     |
+| 30342    | 342D_S3_L001_R1_001.fastq     |
+| 30342    | 342D_S3_L001_I1_001.fastq     |
+| 30342    | 342D_S3_L001_I2_001.fastq     |
+| 30342    | 342M_S2_L001_I1_001.fastq     |
+| 30342    | 342M_S2_L001_I2_001.fastq     |
+| 30342    | 342M_S2_L001_R2_001.fastq     |
+| 30342    | 342M_S2_L001_R1_001.fastq     |
+| 30342    | 342I_S4_L001_R2_001.fastq     |
+| 30342    | 342I_S4_L001_R1_001.fastq     |
+| 30342    | 342I_S4_L001_I1_001.fastq     |
+| 30342    | 342I_S4_L001_I2_001.fastq     |
+| 30348    | 348S1_S12_L001_I1_001.fastq   |
+| 30348    | 348S1_S12_L001_I2_001.fastq   |
+| 30348    | 348S1_S12_L001_R2_001.fastq   |
+| 30348    | 348S1_S12_L001_R1_001.fastq   |
+| 30348    | 348S2_S13_L001_I1_001.fastq   |
+| 30348    | 348S2_S13_L001_I2_001.fastq   |
+| 30348    | 348S2_S13_L001_R2_001.fastq   |
+| 30348    | 348S2_S13_L001_R1_001.fastq   |
+| 30348    | 348S3_S14_L001_I1_001.fastq   |
+| 30348    | 348S3_S14_L001_I2_001.fastq   |
+| 30348    | 348S3_S14_L001_R2_001.fastq   |
+| 30348    | 348S3_S14_L001_R1_001.fastq   |
+| 30348    | 348S4_S15_L001_I2_001.fastq   |
+| 30348    | 348S4_S15_L001_I1_001.fastq   |
+| 30348    | 348S4_S15_L001_R1_001.fastq   |
+| 30348    | 348S4_S15_L001_R2_001.fastq   |
+
+
+# Project link in Dropbox  
+
+[2024_Daiichi_Dxd](https://www.dropbox.com/scl/fo/czkyuod7wnc6ygyfsya7c/AMbaVhF5jfM7V4AwBoAoBhg?rlkey=2td3g5m1ydpj2cktgkqey1u54&dl=0) 
+<br>
+
+# Initial report
+
+[**30342**](init/Daiichi2024_init_30342.v2.html) UMI \>= 1000 & mt% \<= 10% (24.05.07)  
+[**30348**](init/Daiichi2024_init_30348.html) UMI \>= 1000 & mt% \<= 10% (24.05.07)  
+[**30342+30348** (Merged dataset, not yet)](init/Daiichi2024_init_30342_30348.html)
+
+<hr>
+
+# Analysis Reports
+
+## P30342
+
+-   [**UMAP,Clustering,markers**](30342/Daiichi2024_30342.24.05.07.html)
+-   [**UMAP,Clustering,markers v2**](30342/Daiichi2024_30342.24.05.19.UMAP.v2.html)
+    * [**Featureplot shinyApp Dropbox folder link**](https://www.dropbox.com/scl/fo/evlfsrbjzck1vr2krw04g/APYYXtt28815DXERqqp-f7g?rlkey=3jkcf76sodyi4o8c4na3650bz&dl=0)
+    * [**Celltype Annotation (scType)**](30342/annotation/Daiichi2024_30342.24.05.10.annotation.html)
+    * [**Celltype Annotation information (Manual annotation)**](30342/annotation/Daiichi2024_30342.24.05.10.annotation_manual.html)
+<!-- -   [**Suggested Cell -->
+<!--     Type**](30342/annotation/Daiichi2024_30342.24.05.12.suggestedAnnotation.html)   -->
+-   [**Suggested Cell
+    Type v2: res 0.4**](30342/annotation/Daiichi2024_30342.24.05.20.suggestedAnnotation.res0.4.html)
+-   [**Updated Cell Type (Patrick:final)**](30342/annotation/Daiichi2024_30342.24.06.07.CelltypeUpdate.html)
+<br><br>
+    **Subset: Dendritic Cells**  
+    -   [**DEG analysis**](30342/subset/DC/Daiichi2024_30342.24.05.23.DC.html)
+    -   [**DEG UP/DN genes analysis**](30342/subset/DC/Daiichi2024_30342.24.05.23.DC.DEGs.html)
+
+    **Subset: T Cells**  
+    - Note: T cells include various T subtypes. By clustering, the detailed T cell subtypes will be annotated. 
+    -   [**Subset information**](30342/subset/Tcell/Daiichi2024_30342.24.06.07.TCell.html)
+    -   [**Clustering/markers**](30342/subset/Tcell/Daiichi2024_30342.24.06.07.TCell_analysis.html)
+    -   [**Subtype of T cell annotation**](30342/subset/Tcell/Daiichi2024_30342.24.06.10.Suggested_Tcelltype.html)
+
+
+## P30348
+
+-   [**UMAP,Clustering**](30348/Daiichi2024_30348.24.06.10.html)
+-   [**Suggested Cell Types**](30348/annotation/Daiichi2024_30348.24.06.10.suggestedAnnotation.html)
+-   [**Additional QC report**](30348/Daiichi2024_30348.24.05.21.QC.html)
+<br><br>
+    **Subset: Dendritic Cells**  
+    -   [**DEG analysis**](30348/subset/DC/Daiichi2024_30348.24.06.06.DC.html)  
+    -   [**DEG UP/DN genes analysis (not yet)**](30348/subset/DC/Daiichi2024_30348.24.06.06.DC.DEGs.html)  
+
+
+## Merged
+
+<!-- [**(Merged)30342+30348**](init/Daiichi2024_init_30342_30348.html) -->
+
+<hr>
+
+
+# Potential Questions 
+
+1. DS-1062a advantages compared to Dxd-sole treatment  
+
+    * Less toxicity to normal cells?  
+    * Increased cytotoxic capability in NK,Macrophages?   
+    * Shift the TME population toward NK/Macrophage-enriched one?  
+
+
+
+
+
+
+# Drug info here  
+
+**TROP2**
+
+-   Trophoblast cell surface antigen 2 (TROP2)   
+-   aka, tumor-associated calcium signal transducer 2 (TACSTD2), is 
+-   a cell surface glycoprotein that acts as a transmembrane transducer of
+    intracellular (IC) calcium signals.  
+
+-   Trop2 has stem cell-like qualities and regulates cell growth,
+    transformation, regeneration, and proliferation, which explains why
+    its overexpression can lead to **tumor progression**. 
+
+    [Paper: Precision Oncology; April 2024; A new TROP2-targeting
+    antibody-drug conjugate shows potent antitumor efficacy in breast
+    and lung
+    cancers](https://www.nature.com/articles/s41698-024-00584-z)
+
+**Dxd**
+
+-   Deruxtecan, topoisomerase inhibitor.
+-   Cause DNA damage leading cells to apoptosis.
+
+**DS-1062a**
+
+-   datopotamab deruxtecan.
+
+-   (TROP2)-targeting antibody drug conjugate with Dxd.
+
+### Datopotamab Deruxtecan (NCI Info) 
+
+1. **Antibody-Drug Conjugate (ADC) **:
+   - Humanized monoclonal antibody against TAA TROP2 (TACSTD2).
+   - Enzymatically cleavable tetrapeptide-based linker.
+   - Cytotoxic DNA topoisomerase I inhibitor and exatecan (DX-8951) derivative DXd (MAAA-1181a; MAAA-1181).
+
+2. **Mechanism**:
+   - Anti-TROP2 antibody targets and binds to TROP2 on tumor cells.
+   - Cellular uptake and lysosomal degradation of the linker.
+   - DXd targets and binds to DNA topoisomerase I.
+   - Stabilizes the cleavable complex between topoisomerase I and DNA.
+   - Results in DNA breaks, inhibition of DNA replication, and apoptosis.
+   - Inhibits tumor cell proliferation of TROP2-expressing tumor cells.
+
+3. **TROP2 Featuures**:
+   - Transmembrane protein overexpressed in various tumors.
+   - Low and/or restricted expression in normal, healthy tissues.
+   - Associated with enhanced tumor aggressiveness, metastasis, drug resistance, and increased tumor cell survival.
+
+4. **ADC Advantages**:
+   - Reduced systemic exposure.
+   - Enhanced delivery of the cytotoxic agent DXd.
+
+-   [NCI
+    link](https://www.cancer.gov/publications/dictionaries/cancer-drug/def/datopotamab-deruxtecan)
+
+-   [Daiichi Sankyo Expands DS-1062 Study to Include Patients with
+    Triple Negative Breast Cancer; July 02,
+    2020](https://www.daiichisankyo.com/media/press_release/detail/index_3131.html)
+
+<br>
+
+<!-- **Note**   -->
+
+<!-- cellranger aggr was not working on Belfer team's server. (Iliana, Patrick)      -->
+
+<!-- rcapps5 can't access rc-stor15 srp68/tools/ folder for cellranger files. (Sung)    -->
+
+<!-- Manual processing with feature matrix files (24.05.06)     -->
+
+<hr>
+
+
+
+<!-- 연구방법 -->
+
+<!-- 1. **세포집단 간의 반응 차이 분석**: 각 약물 처리군 (DMSO, Dxd, IgG Dxd, DS-1062a)의 세포들에서 발현 패턴을 비교하여, 어떤 세포 하위집단이 특정 약물에 대해 민감하거나 저항적인지를 분석할 수 있습니다. Seurat과 같은 툴을 사용하여 클러스터링과 차이 발현 유전자 분석을 수행할 수 있습니다. -->
+
+<!-- 2. **경로 분석 및 기능적 연관성 분석**: 약물 처리에 의해 유의하게 영향을 받는 유전자들을 바탕으로 경로 분석을 수행하여, 약물이 세포 기능에 어떤 변화를 일으키는지 파악할 수 있습니다. GSEA (Gene Set Enrichment Analysis) 또는 Over-representation analysis를 통해 관련된 생물학적 경로를 파악할 수 있습니다. -->
+
+<!-- 3. **세포 운명 및 전이 분석**: 약물 처리가 세포의 상태 변화나 운명에 어떤 영향을 미치는지 분석할 수 있습니다. 예를 들어, pseudotime analysis를 통해 세포가 약물 처리 전후로 어떻게 변화하는지 추적할 수 있습니다. -->
+
+<!-- 4. **표적 약물과 비표적 약물의 비교 분석**: TROP2를 표적으로 하는 DS-1062a와 비특이적으로 작용하는 IgG Dxd의 효과를 비교하여, 표적 약물이 특정 세포형에 미치는 효과의 차이를 분석할 수 있습니다. 이를 통해 표적 치료제의 세포 선택성과 효능을 평가할 수 있습니다. -->
+
+<!-- 5. **멀티 모달 데이터 통합 분석**: 가능하다면, scRNA-seq 데이터 외에 다른 유형의 데이터 (예: proteomics, metabolomics)와의 통합 분석을 통해 더 넓은 범위의 세포 반응을 이해할 수 있습니다. -->
+
+
+<!-- -   [**Flow sorting marker gene expression**](30342/analysis/Daiichi2024_30342.24.05.16.flow_based.html)   -->
+<!-- -   [**Cancer Cell-related analysis**](30342/analysis/Daiichi2024_30342.24.05.17.cancer.html)    -->
+    <!-- * [**Marker GSEA GO**](30342/annotation/Daiichi2024_30342.24.05.11.clusterGSEA.html)   -->
+<!-- -   [**Population Shift**](30342/analysis/Daiichi2024_30342.24.05.12.analysis_population.html) -->
