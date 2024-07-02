@@ -1,0 +1,249 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: ""
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+### 30342 bulk RNA-seq {.tabset}  
+
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30342/star30342_rawData.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# rename column names 
+colnames(counts)= sub("_Count", "", colnames(counts))
+rownames(counts) = counts$SYMBOL
+counts = counts[,-1]
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() # 22845
+```
+
+```{r}
+tpms = count_TPM_matrix_all$TPM
+
+# rename column names 
+colnames(tpms)= sub("_TPM", "", colnames(tpms))
+rownames(tpms) = tpms$SYMBOL
+tpms = tpms[,-1]
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+# tpms %>% nrow() # 22845
+```
+
+
+### ssGSEA {.tabset}  
+
+
+#### HALLMARK  
+```{r}
+library(clusterProfiler)
+hallmark <- msigdbr::msigdbr(species = "Homo sapiens", category = "H") %>% 
+  dplyr::select(gs_name, gene_symbol)
+
+```
+
+```{r}
+gs_names = hallmark$gs_name %>% unique()
+
+hallmakrList = list()
+
+# 리스트 초기화
+hallmarkList <- list()
+
+# 반복문을 사용하여 각 고유 gs_name에 대해 필터링 및 리스트 생성
+for (i in seq_along(gs_names)) {
+  hallmarkList[[gs_names[i]]] <- hallmark %>% 
+    filter(gs_name == gs_names[i]) %>% 
+    dplyr::select(gene_symbol) %>% 
+    pull()
+}
+```
+
+
+```{r}
+## Perform ssgsea 
+library(corto)
+
+## Input data : tpm (count.mtx is accepted as well) 
+test = ssgsea(tpms,hallmarkList)
+
+## Reshape it to plot 
+test.df = test %>% t() %>% data.frame()
+rownames(test.df) = colnames(tpms)
+
+## p value of ssgsea 
+pval = corto::z2p(test)
+colnames(pval) = rownames(test.df)
+```
+
+
+```{r, fig.width=10, fig.height=8}
+# meta = colData(dds) 
+# anno.col = meta[,"cond"] %>% as.data.frame()
+# rownames(anno.col) = rownames(meta)
+# colnames(anno.col) = "sample"
+# anno.col = anno.col %>% arrange(sample)
+
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(70),
+           colorRampPalette(colors = c("white","#D35400"))(70))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of HALLMARK pathways",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+# t(test.df[rownames(anno.col),]) %>% pheatmap::pheatmap(color = my.color, 
+#                                   cluster_rows = T,
+#                                   cluster_cols = F,
+#                                   main = "ssGSEA of HALLMARK pathways",
+#                                   show_rownames = T,
+#                                   show_colnames = F,
+#                                   annotation_col = anno.col,
+#                                   fontsize_row = 7) # Simple heatmap 
+```
+
+#### scRNA-seq + bulk RNA-seq  
+
+<br>
+<img src="../img/ssGSEA_scRNA_mks.240614.png" width="100%" height="auto"> 
+<br>
+
+
+#### scRNA-seq res 0.2 markers  
+```{r}
+mks = read.csv(paste0(dir,"data/mks/Daiichi_30342_RNA_snn_res.0.2.markers.csv"), row.names = 1)
+```
+
+```{r}
+gs_names = unique(mks$cluster)
+# 리스트 초기화
+geneList <- list()
+
+# 반복문을 사용하여 각 고유 gs_name에 대해 필터링 및 리스트 생성
+for (i in seq_along(gs_names)) {
+  geneList[[paste0("Cluster_",gs_names[i])]] <- mks %>% 
+    filter(cluster == gs_names[i]) %>% 
+    dplyr::select(gene) %>% 
+    pull()
+}
+
+```
+
+**Note: Performing ssGSEA analysis on the bulk RNA-seq data with markers of scRNA-seq clusters (cell types) used as Gene Sets.**<br>
+
+```{r}
+library(corto)
+
+## Input data : tpm (count.mtx is accepted as well) 
+test = ssgsea(tpms,geneList)
+
+## Reshape it to plot 
+test.df = test %>% t() %>% data.frame()
+rownames(test.df) = colnames(tpms)
+
+## p value of ssgsea 
+pval = corto::z2p(test)
+colnames(pval) = rownames(test.df)
+```
+
+
+```{r, fig.width=8, fig.height=6}
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(70),
+           colorRampPalette(colors = c("white","#D35400"))(70))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of scRNA-seq res 0.2 markers",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+```
+
+#### scRNA-seq res 0.2 markers with annotation   
+
+```{r}
+cell_types <- c("Tcells", 
+                "Macrophage1_TAMs", 
+                "NK_NKT", 
+                "Bcell", 
+                "Tregs", 
+                "CancerCell1", 
+                "EndothelialCell",
+                "DC", 
+                "Basophil",
+                "Macrophage2", 
+                "Platelet",
+                # "ErythroidCell", # This cluster was removed
+                "CancerCell2", 
+                "Neutrophil")
+
+colnames(test.df) = cell_types
+```
+
+
+```{r, fig.width=8, fig.height=6}
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(70),
+           colorRampPalette(colors = c("white","#D35400"))(70))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of scRNA-seq res 0.2 markers",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+```
+
+
+Note:  
+1. DS-1062a restored the TME similar to DMSO control.  
+2. T cells features in DS-1062a get more intensive than those from 3 conditions.  
+3. ...   

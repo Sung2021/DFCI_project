@@ -1,0 +1,426 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+### 30342 data matrix {.tabset}  
+
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30342/star30342_rawData.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# rename column names 
+colnames(counts)= sub("_Count", "", colnames(counts))
+rownames(counts) = counts$SYMBOL
+counts = counts[,-1]
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() # 22845
+```
+
+#### TPM table  
+
+```{r}
+tpms = count_TPM_matrix_all$TPM
+
+# rename column names 
+colnames(tpms)= sub("_TPM", "", colnames(tpms))
+rownames(tpms) = tpms$SYMBOL
+tpms = tpms[,-1]
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+# tpms %>% nrow() # 22845
+```
+
+
+```{r}
+tpms %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+
+```
+
+
+#### TPM distribution  
+```{r}
+tpms %>% reshape::melt() %>% ggplot(aes(x= value, fill= variable)) + geom_boxplot() + coord_flip() + scale_x_log10() + 
+  theme_bw() +
+  theme(legend.title = element_blank()) + xlab("") 
+```
+
+
+#### count table  
+
+```{r}
+counts %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+
+```
+
+
+
+<!-- ### TIMER {.tabset}   -->
+
+<!-- http://timer.comp-genomics.org/timer/   -->
+
+
+<!-- ```{r} -->
+<!-- timerOut = read.csv(paste0(dir,"data/timer/estimation_matrix.csv"), -->
+<!--                     row.names = 1) -->
+<!-- colnames(timerOut) = sub("X","", colnames(timerOut)) -->
+<!-- ``` -->
+
+
+<!-- ```{r, eval=FALSE} -->
+<!-- # TIMER result   -->
+<!-- timerOut %>% DT::datatable(extensions = "Buttons",  -->
+<!--                 options = list(autoWidth = TRUE,  -->
+<!--                                fixedHeader = TRUE, -->
+<!--                                dom="Bfrtip", buttons=c("csv","excel"))) -->
+<!-- ``` -->
+
+
+<!-- #### CIBERSORT result   -->
+<!-- ```{r, fig.width=12, fig.height=12} -->
+<!-- algrthm = "CIBERSORT" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% reshape::melt() %>% ggplot(aes(.[,1], .[,3]*100, fill=.[,1])) + geom_col(color="grey33") + -->
+<!--   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) + -->
+<!--   xlab("") + ylab("%") + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   ggthemes::theme_base() + -->
+<!--   theme(legend.title = element_blank(),  -->
+<!--         axis.text.x = element_text(angle = 90, hjust=1, size=8)) + -->
+<!--   labs(title = paste0("Algorithm : ",algrthm)) -->
+
+<!-- ``` -->
+
+<!-- #### TIMER result    -->
+<!-- <br> -->
+
+
+<!-- ```{r, fig.width=12, fig.height=10} -->
+<!-- algrthm = "TIMER" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% reshape::melt() %>% ggplot(aes(.[,1], .[,3]*100, fill=.[,1])) + geom_col(color="grey33") + -->
+<!--   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) + -->
+<!--   xlab("") + ylab("%") + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   ggthemes::theme_base() + -->
+<!--   theme(legend.title = element_blank(),  -->
+<!--         axis.text.x = element_text(angle = 90, hjust=1, size=10)) + -->
+<!--   labs(title = paste0("Algorithm : ",algrthm)) -->
+
+<!-- ``` -->
+
+
+
+<!-- #### QUANTISEQ result   -->
+
+
+<!-- ```{r, fig.width=12, fig.height=10} -->
+<!-- algrthm = "QUANTISEQ" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% reshape::melt() %>% ggplot(aes(.[,1], .[,3]*100, fill=.[,1])) + geom_col(color="grey33") + -->
+<!--   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) + -->
+<!--   xlab("") + ylab("%") + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   ggthemes::theme_base() + -->
+<!--   theme(legend.title = element_blank(),  -->
+<!--         axis.text.x = element_text(angle = 90, hjust=1, size=10)) + -->
+<!--   labs(title = paste0("Algorithm : ",algrthm)) -->
+
+<!-- ``` -->
+
+
+<!-- #### XCELL result   -->
+<!-- ```{r, fig.width=20, fig.height=16} -->
+<!-- # xCell is a robust computational method that converts gene expression profiles to enrichment scores of 64 immune and stroma cell types across samples.   -->
+
+<!-- algrthm = "XCELL" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% reshape::melt() %>% ggplot(aes(.[,1], .[,3]*100, fill=.[,1])) + geom_col(color="grey33") + -->
+<!--   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) + -->
+<!--   xlab("") + ylab("%") + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   ggthemes::theme_base() + -->
+<!--   theme(legend.title = element_blank(),  -->
+<!--         axis.text.x = element_text(angle = 90, hjust=1, size=8)) + -->
+<!--   labs(title = paste0("Algorithm : ",algrthm)) -->
+
+<!-- ``` -->
+
+
+<!-- #### MCPCOUNTER result   -->
+<!-- <br> -->
+<!-- MCP-counter scores are proportional to the amount of each cell population in the total sample, which allows inter-sample comparison for each population. However, these scores are expressed in a different arbitrary unit for each population, which prevents intra-sample comparison between populations.   -->
+<!-- <br> -->
+
+<!-- ```{r, fig.width=12, fig.height=10} -->
+<!-- algrthm = "MCPCOUNTER" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% reshape::melt() %>% ggplot(aes(.[,1], .[,3]*100, fill=.[,1])) + geom_col(color="grey33") + -->
+<!--   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) + -->
+<!--   xlab("") + ylab("%") + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   ggthemes::theme_base() + -->
+<!--   theme(legend.title = element_blank(),  -->
+<!--         axis.text.x = element_text(angle = 90, hjust=1, size=10)) + -->
+<!--   labs(title = paste0("Algorithm : ",algrthm)) -->
+
+<!-- ``` -->
+
+
+
+<!-- ### TIMER (Intra-sample comparison)  {.tabset}   -->
+
+<!-- #### CIBERSORT   -->
+<!-- ```{r, fig.width=12, fig.height=8} -->
+<!-- algrthm = "CIBERSORT" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% -->
+<!--   reshape::melt() %>% -->
+<!--   ggplot(aes(x = "", y = .[,3], fill = .[,1])) + -->
+<!--   geom_bar(stat = "identity", color="grey33") + -->
+<!--   coord_polar("y", start = 0) + -->
+<!--   xlab("") + ylab("") + -->
+<!--   theme_classic() + -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks = element_blank(), -->
+<!--         legend.position = "right", -->
+<!--         legend.title = element_blank()) + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   labs(title = paste0("Algorithm : ", algrthm)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) -->
+<!-- ``` -->
+
+
+
+
+
+<!-- ## QUANTISEQ   -->
+
+<!-- In each sample, the "uncharacterized cell" category represents the largest fraction. It appears that QUANTISEQ may not be the most suitable algorithm for analyzing this data.    -->
+
+
+<!-- ```{r, fig.width=12, fig.height=8} -->
+<!-- algrthm = "QUANTISEQ" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% -->
+<!--   reshape::melt() %>% -->
+<!--   ggplot(aes(x = "", y = .[,3], fill = .[,1])) + -->
+<!--   geom_bar(stat = "identity",color="grey33") + -->
+<!--   coord_polar("y", start = 0) + -->
+<!--   xlab("") + ylab("") + -->
+<!--   theme_classic() + -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks = element_blank(), -->
+<!--         legend.position = "right", -->
+<!--         legend.title = element_blank()) + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   labs(title = paste0("Algorithm : ", algrthm)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) -->
+<!-- ``` -->
+
+
+
+<!-- <br><br><br><br> -->
+<!-- ```{r, fig.width=12, fig.height=8, eval=FALSE} -->
+<!-- ## XCELL   -->
+
+<!-- algrthm = "XCELL" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% -->
+<!--   reshape::melt() %>% -->
+<!--   ggplot(aes(x = "", y = .[,3], fill = .[,1])) + -->
+<!--   geom_bar(stat = "identity",color="grey33") + -->
+<!--   coord_polar("y", start = 0) + -->
+<!--   xlab("") + ylab("") + -->
+<!--   theme_classic() + -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks = element_blank(), -->
+<!--         legend.position = "right", -->
+<!--         legend.title = element_blank()) + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   labs(title = paste0("Algorithm : ", algrthm)) + -->
+<!--   facet_wrap(.~variable, ncol = 3) -->
+<!-- ``` -->
+
+
+<!-- <br><br><br><br> -->
+<!-- ```{r, eval=FALSE} -->
+<!-- ## MCPCOUNTER   -->
+
+<!-- # Based on the absolute abundance of eight immune and two stromal cell populations in heterogeneous tissues from transcriptomic data. The Piechart is not available.   -->
+
+<!-- algrthm = "MCPCOUNTER" -->
+<!-- rs = rownames(timerOut)[grepl(paste0(algrthm,"$"), rownames(timerOut))] -->
+<!-- df = timerOut[rs,] -->
+<!-- df$timer_info = gsub(paste0("_",algrthm),"",rownames(df))  -->
+
+<!-- # plot  -->
+<!-- df[rs,] %>% -->
+<!--   reshape::melt() %>% -->
+<!--   ggplot(aes(x = "", y = .[,3], fill = .[,1])) + -->
+<!--   geom_bar(stat = "identity",color="grey33") + -->
+<!--   coord_polar("y", start = 0) + -->
+<!--   xlab("") + ylab("") + -->
+<!--   theme_base() + -->
+<!--   theme(axis.text.x = element_blank(), -->
+<!--         axis.ticks = element_blank(), -->
+<!--         legend.position = "right", -->
+<!--         legend.title = element_blank()) + -->
+<!--   guides(fill = guide_legend(ncol = 1)) + # 레전드를 한 줄로 표시 -->
+<!--   labs(title = paste0("Algorithm : ", algrthm)) + -->
+<!--   facet_wrap(.~variable, ncol = 4) -->
+<!-- ``` -->
+
+
+
+<!-- ### ssGSEA   -->
+
+
+<!-- ```{r} -->
+<!-- library(clusterProfiler) -->
+<!-- hallmark <- msigdbr::msigdbr(species = "Homo sapiens", category = "H") %>%  -->
+<!--   dplyr::select(gs_name, gene_symbol) -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- gs_names = hallmark$gs_name %>% unique() -->
+
+<!-- hallmakrList = list() -->
+
+<!-- # 리스트 초기화 -->
+<!-- hallmarkList <- list() -->
+
+<!-- # 반복문을 사용하여 각 고유 gs_name에 대해 필터링 및 리스트 생성 -->
+<!-- for (i in seq_along(gs_names)) { -->
+<!--   hallmarkList[[gs_names[i]]] <- hallmark %>%  -->
+<!--     filter(gs_name == gs_names[i]) %>%  -->
+<!--     dplyr::select(gene_symbol) %>%  -->
+<!--     pull() -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- ## Perform ssgsea  -->
+<!-- library(corto) -->
+
+<!-- ## Input data : tpm (count.mtx is accepted as well)  -->
+<!-- test = ssgsea(tpms,hallmarkList) -->
+
+<!-- ## Reshape it to plot  -->
+<!-- test.df = test %>% t() %>% data.frame() -->
+<!-- rownames(test.df) = colnames(tpms) -->
+
+<!-- ## p value of ssgsea  -->
+<!-- pval = corto::z2p(test) -->
+<!-- colnames(pval) = rownames(test.df) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # meta = colData(dds)  -->
+<!-- # anno.col = meta[,"cond"] %>% as.data.frame() -->
+<!-- # rownames(anno.col) = rownames(meta) -->
+<!-- # colnames(anno.col) = "sample" -->
+<!-- # anno.col = anno.col %>% arrange(sample) -->
+
+<!-- ## Heatmap  -->
+<!-- my.color=c(colorRampPalette(colors = c("#2874A6","white"))(70), -->
+<!--            colorRampPalette(colors = c("white","#D35400"))(70)) -->
+
+<!-- t(test.df) %>% pheatmap::pheatmap(color = my.color,  -->
+<!--                                   cluster_rows = T, -->
+<!--                                   cluster_cols = F, -->
+<!--                                   main = "ssGSEA of HALLMARK pathways", -->
+<!--                                   show_rownames = T, -->
+<!--                                   show_colnames = T, -->
+<!--                                   fontsize_row = 7, -->
+<!--                                   gaps_col = c(3,6,9)) # Simple heatmap  -->
+<!-- # t(test.df[rownames(anno.col),]) %>% pheatmap::pheatmap(color = my.color,  -->
+<!-- #                                   cluster_rows = T, -->
+<!-- #                                   cluster_cols = F, -->
+<!-- #                                   main = "ssGSEA of HALLMARK pathways", -->
+<!-- #                                   show_rownames = T, -->
+<!-- #                                   show_colnames = F, -->
+<!-- #                                   annotation_col = anno.col, -->
+<!-- #                                   fontsize_row = 7) # Simple heatmap  -->
+<!-- ``` -->
+

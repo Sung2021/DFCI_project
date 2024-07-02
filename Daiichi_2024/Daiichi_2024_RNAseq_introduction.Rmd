@@ -1,0 +1,133 @@
+---
+title: "2024 Daiichi DS1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+### Introduction
+
+Paweletz lab  
+2024.06.10
+<br> 
+
+<!-- [**Link to Daiichi DS1062a scRNA-seq**](../../2024_Daiichi_DXD/rmd/Daiichi_2024_index.html) -->
+
+
+### Experimental Conditions  
+
+- **Patient Groups:** 30342 and 30348  
+- **Treatment Conditions:**  
+  - **M (Control):** DMSO  
+  - **D:** Dxd (deruxtecan, topoisomerase inhibitor) 1 µM  
+  - **I:** IgG Dxd (non-specific gene-targeting Dxd) 30 µg/ml  
+  - **A:** DS-1062a (datopotamab deruxtecan, TROP2-targeting Dxd) 30 µg/ml
+- **Sequencing type:** bulk RNA-seq  
+
+
+### Data Information  
+
+#### Table  
+| Sample ID   | Treatment |
+|-------------|-----------|
+| 30342-1.1   | DMSO      |
+| 30342-1.2   | DMSO      |
+| 30342-1.3   | DMSO      |
+| 30342-2.1   | Dxd       |
+| 30342-2.2   | Dxd       |
+| 30342-2.3   | Dxd       |
+| 30342-3.1   | IgG-DxD   |
+| 30342-3.2   | IgG-DxD   |
+| 30342-3.3   | IgG-DxD   |
+| 30342-4.1   | DS1062a   |
+| 30342-4.2   | DS1062a   |
+| 30342-4.3   | DS1062a   |
+| 30348-1.1   | DMSO      |
+| 30348-1.2   | DMSO      |
+| 30348-1.3   | DMSO      |
+| 30348-2.1   | Dxd       |
+| 30348-2.2   | Dxd       |
+| 30348-2.3   | Dxd       |
+| 30348-3.1   | IgG-DxD   |
+| 30348-3.2   | IgG-DxD   |
+| 30348-3.3   | IgG-DxD   |
+| 30348-4.1   | DS1062a   |
+| 30348-4.2   | DS1062a   |
+| 30348-4.3   | DS1062a   |
+
+**30342 only**  
+
+| Sample ID | DMSO | Dxd | IgG-DxD | DS1062a |
+|-----------|------|-----|---------|---------|
+| 30342-1.1 | DMSO |     |         |         |
+| 30342-1.2 | DMSO |     |         |         |
+| 30342-1.3 | DMSO |     |         |         |
+| 30342-2.1 |      | Dxd |         |         |
+| 30342-2.2 |      | Dxd |         |         |
+| 30342-2.3 |      | Dxd |         |         |
+| 30342-3.1 |      |     | IgG-DxD |         |
+| 30342-3.2 |      |     | IgG-DxD |         |
+| 30342-3.3 |      |     | IgG-DxD |         |
+| 30342-4.1 |      |     |         | DS1062a |
+| 30342-4.2 |      |     |         | DS1062a |
+| 30342-4.3 |      |     |         | DS1062a |
+
+**30348 only**  
+
+| Sample ID | DMSO | Dxd | IgG-DxD | DS1062a |
+|-----------|------|-----|---------|---------|
+| 30348-1.1 | DMSO |     |         |         |
+| 30348-1.2 | DMSO |     |         |         |
+| 30348-1.3 | DMSO |     |         |         |
+| 30348-2.1 |      | Dxd |         |         |
+| 30348-2.2 |      | Dxd |         |         |
+| 30348-2.3 |      | Dxd |         |         |
+| 30348-3.1 |      |     | IgG-DxD |         |
+| 30348-3.2 |      |     | IgG-DxD |         |
+| 30348-3.3 |      |     | IgG-DxD |         |
+| 30348-4.1 |      |     |         | DS1062a |
+| 30348-4.2 |      |     |         | DS1062a |
+| 30348-4.3 |      |     |         | DS1062a |
+
+#### Raw fastq files backup 
+
+**rc-stor15 location**   
+/mnt/centers/bxdx/srp68/raw_data/Daiichi_DS1062a_bulk/fastq  
+
+<br><br>
+
+#### Dropbox Link  
+
+[**Dropbox folder : 2024_Daiichi_DS1062a_bulk**](https://www.dropbox.com/scl/fo/led84hq7i60c5ofvav69h/AHsmEzDqtoOKrdcieT7MJ44?rlkey=0f0cp5siv8m60iy3ikyz7ameq&dl=0)
+
+#### MultiQC file 
+
+[**Report Link**](multiqc_report.html)<br>
+<br><br>
+
+
