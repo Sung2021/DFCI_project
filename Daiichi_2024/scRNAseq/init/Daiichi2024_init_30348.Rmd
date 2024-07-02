@@ -1,0 +1,545 @@
+---
+title: "2024 Daiichi DXD"
+subtitle: "Initial Report: 30348"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+## load required packages
+library(Seurat)
+library(cowplot)
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+<br>
+
+```{r, eval=FALSE}
+# Load necessary libraries
+library(Seurat)
+
+# Set base directory and patient information
+dir <- '~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_DXD'
+patient <- '30348'
+
+# List of folder identifiers
+folders <- c('M', 'I', 'A', 'D')
+
+# Initialize an empty list to hold all Seurat objects
+obj.list <- list()
+
+# Use a loop to read data from each folder and create Seurat objects
+for (folder in folders) {
+  # Set the data directory
+  dir_features <- paste0(dir, "/raw_data/cellranger_outs/", patient, "/", folder, "/filtered_feature_bc_matrix")
+  
+  # Read the 10X data
+  obj_raw <- Read10X(dir_features)
+  
+  # Create a Seurat object
+  obj_srt <- CreateSeuratObject(counts = obj_raw, project = paste0("P",patient, '_', folder))
+  
+  # Add the created Seurat object to the list
+  obj.list[[folder]] <- obj_srt
+}
+
+# Print the list for verification
+obj.list
+
+```
+
+
+
+```{r, eval=FALSE}
+
+# Merge all Seurat objects into a single Seurat object using add.cell.ids
+obj_merged <- merge(
+  x = obj.list[['M']],
+  y = c(obj.list[['I']], obj.list[['A']], obj.list[['D']]),
+  add.cell.ids = folders,
+  project = paste0(patient, "_Merged")
+)
+
+# Verify the merged object
+obj_merged
+obj_merged@meta.data[1:3,]
+```
+
+```{r, eval=FALSE}
+# Combine all count layers into a single matrix
+counts_combined <- cbind(
+  GetAssayData(obj_merged, assay = "RNA", layer = "counts.P30348_M"),
+  GetAssayData(obj_merged, assay = "RNA", layer = "counts.P30348_I"),
+  GetAssayData(obj_merged, assay = "RNA", layer = "counts.P30348_A"),
+  GetAssayData(obj_merged, assay = "RNA", layer = "counts.P30348_D")
+)
+
+# Update the RNA assay with the new unified data layer
+obj_merged[["RNA"]] <- CreateAssayObject(counts = counts_combined)
+
+# Normalize the data
+obj_merged <- NormalizeData(obj_merged)
+
+# Find variable features across the merged dataset
+obj_merged <- FindVariableFeatures(obj_merged, selection.method = "vst", nfeatures = 2000)
+
+# Scale the data
+obj_merged <- ScaleData(obj_merged)
+
+# # Access the merged data matrix directly using the 'layer' argument
+# merged_data <- GetAssayData(obj_merged, assay = "RNA", layer = "data")
+# 
+# # Print summary information
+# print(obj_merged)
+# print(dim(merged_data))  # Should reflect the correct shape
+```
+
+
+```{r, eval=FALSE}
+# Preparation of data matrix for scrublet run
+## prepare count mtx using function
+write_count_matrix_csv <- function(obj.srt, output_dir, file_name_prefix) {
+  data <- obj.srt@assays$RNA@data
+  df <- data %>% data.frame() %>% t()
+  rownames(df) <- gsub(pattern = '-', replacement = '_', rownames(df))
+  output_file <- file.path(output_dir, paste0(file_name_prefix, '.count.mtx.csv'))
+  df %>% write.csv(file = output_file)
+}
+
+# write_count_matrix_csv
+dir <- '~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_DXD/rds/'
+output_directory <- dir
+file_prefix <- 'P30348'
+write_count_matrix_csv(obj.srt=obj_merged, output_directory, file_name_prefix = file_prefix)
+```
+
+
+```{r, eval=FALSE}
+dir <- '~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_DXD/rds/'
+## import scrublet result
+df= read.csv(paste0(dir,"P30348.count.mtx.scr.csv"), row.names = 1)
+
+# If the previous process changes the name of cell ID, 
+# Use the following code to correct it. 
+rownames(df) = gsub(pattern = '\\.', replacement = '-' ,rownames(df))
+
+## add doublet info to the srt obj
+
+obj_merged[['doublet_score']] = df[rownames(obj_merged@meta.data),]$doublet_score
+obj_merged[['predicted_doublet']] =df[rownames(obj_merged@meta.data),]$predicted_doublet
+```
+
+
+```{r, eval=FALSE}
+# Add mitochondrial content 
+obj_merged[["percent.mt"]] <- PercentageFeatureSet(obj_merged, pattern = "^MT-")
+obj_merged %>% saveRDS(paste0(dir,"/P30348.init.24.05.07.rds"))
+```
+
+
+```{r, eval=FALSE}
+## perform default analysis
+perform_default_analysis <- function(obj.srt, n_features = 2000, n_pcs = 20, 
+                                     dims_for_neighbors = 1:20, 
+                                     resolutions = c(0.2), 
+                                     umap_dims = 1:20) {
+  # Step 1: Find variable features
+  obj.srt <- FindVariableFeatures(obj.srt, 
+                                  selection.method = 'vst', 
+                                  nfeatures = n_features)
+  
+  # Step 2: Scale and normalize data
+  all_genes <- rownames(obj.srt)
+  obj.srt <- NormalizeData(obj.srt)
+  obj.srt <- ScaleData(obj.srt, features = all_genes)
+  
+  # Step 3: Run PCA
+  obj.srt <- RunPCA(obj.srt, 
+                    features = VariableFeatures(object = obj.srt), npcs = n_pcs)
+  
+  # Step 4: Find neighbors
+  obj.srt <- FindNeighbors(obj.srt, dims = dims_for_neighbors)
+  
+  # Step 5: Find clusters
+  obj.srt <- FindClusters(obj.srt, resolution = resolutions)
+  
+  # Step 6: Run UMAP
+  obj.srt <- RunUMAP(obj.srt, dims = umap_dims)
+  
+  # Return the Seurat object with analysis results
+  return(obj.srt)
+}
+
+# apply
+obj.srt <- perform_default_analysis(obj_merged)
+```
+
+```{r, eval=FALSE}
+obj.srt = obj_merged
+```
+
+
+```{r}
+dir= "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_DXD/"
+obj.srt = readRDS(paste0(dir,"rds/P30348.init.24.05.07.rds"))
+```
+
+```{r}
+
+```
+
+**Number of total cells** 
+```{r}
+obj.srt@meta.data %>% nrow()
+```
+
+**Number of cells in each condition**
+```{r}
+obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(colnames = c("sample","Number of cells"))
+```
+
+```{r, eval=FALSE}
+obj.srt@meta.data %>%
+  group_by(orig.ident) %>%
+  summarise(across(where(is.numeric), list(mean = mean, median = median, sd = sd), na.rm = TRUE)) %>% DT::datatable()
+```
+
+
+```{r, eval=FALSE}
+# **Summary stat table**
+summary_stats <- obj.srt@meta.data %>%
+  group_by(orig.ident) %>%
+  summarise(
+    nCount_RNA_mean = mean(nCount_RNA, na.rm = TRUE),
+    nCount_RNA_median = median(nCount_RNA, na.rm = TRUE),
+    nFeature_RNA_mean = mean(nFeature_RNA, na.rm = TRUE),
+    nFeature_RNA_median = median(nFeature_RNA, na.rm = TRUE),
+    percent.mt_mean = mean(percent.mt, na.rm=TRUE),
+    percent.mt_median = median(percent.mt, na.rm=TRUE),
+    predicted_doublet_true = sum(predicted_doublet == "True"),
+    predicted_doublet_false = sum(predicted_doublet == "False")
+  )
+
+summary_stats %>% DT::datatable()
+```
+
+
+# UMI  
+```{r}
+obj.srt@meta.data %>%
+  ggplot(aes(x = orig.ident, y = nCount_RNA)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 0.2, alpha = 0.1) +
+  scale_y_log10()
+```
+
+# Mitochondrial content  
+```{r}
+obj.srt@meta.data %>%
+  ggplot(aes(x = orig.ident, y = percent.mt)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, size = 0.2, alpha = 0.1) +
+  scale_y_sqrt()
+```
+
+# UMI vs mitochondrial contents {.tabset}  
+
+## version 1  
+```{r, fig.width=8, fig.height=7}
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) +geom_point(size=0.5, alpha=0.5) +
+  facet_wrap(.~orig.ident, ncol = 2) +scale_x_sqrt()
+```
+
+
+## version 2  
+```{r, fig.width=8, fig.height=7}
+obj.srt@meta.data %>% ggplot(aes(nCount_RNA, percent.mt)) +geom_point(size=0.3, alpha=0.5) +
+  facet_wrap(.~orig.ident, ncol = 2) +scale_x_sqrt() +
+  geom_vline(xintercept = c(100, 500, 1000), color="salmon") +
+  geom_hline(yintercept = c(10, 25), color="salmon")
+```
+
+## version 3  
+```{r, fig.width=8, fig.height=7}
+obj.srt@meta.data %>%
+  ggplot(aes(x = nCount_RNA, y = percent.mt)) +
+  geom_point(size = 0.3, alpha = 0.5, color = "grey55") +
+  stat_density_2d(aes(fill = ..level..), geom = "density_2d", color = "red", alpha=0.6) +
+  facet_wrap(. ~ orig.ident, ncol = 2) +
+  scale_fill_gradient(low = "grey", high = "red") +
+  scale_x_sqrt() +
+  geom_vline(xintercept = 100, color = "pink") +
+  geom_vline(xintercept = 500, color = "pink") +
+  geom_vline(xintercept = 1000, color = "pink") +
+  geom_hline(yintercept = c(10, 25), color = "pink") +
+  annotate("text", x = 100, y = max(obj.srt@meta.data$percent.mt) * 0.95, label = "100", color = "red", vjust = -1, size=3) +
+  annotate("text", x = 500, y = max(obj.srt@meta.data$percent.mt) * 0.92, label = "500", color = "red", vjust = -1, size=3) +
+  annotate("text", x = 1000, y = max(obj.srt@meta.data$percent.mt) * 0.89, label = "1000", color = "red", vjust = -1, size=3) +
+  annotate("text", x = max(obj.srt@meta.data$nCount_RNA) * 0.95, y = 10, label = "10", color = "red", hjust = -0.1) +
+  annotate("text", x = max(obj.srt@meta.data$nCount_RNA) * 0.95, y = 25, label = "25", color = "red", hjust = -0.1) +
+  theme_minimal() 
+
+```
+
+
+# Number of cells with UMI & mitochondrial content cutoff {.tabset} 
+
+## nCount_RNA >= 500 & percent.mt <= 25  
+```{r}
+obj.srt@meta.data %>% filter(predicted_doublet == "False") %>% filter(nCount_RNA >= 500 & percent.mt <= 25) %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(colnames = c("sample", "Number of cells"), caption = "nCount_RNA >= 500 & percent.mt <= 25")
+```
+
+## nCount_RNA >= 1000 & percent.mt <= 25  
+```{r}
+obj.srt@meta.data %>% filter(predicted_doublet == "False") %>% filter(nCount_RNA >= 1000 & percent.mt <= 25) %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(colnames = c("sample", "Number of cells"), caption = "nCount_RNA >= 1000 & percent.mt <= 25")
+```
+
+
+## nCount_RNA >= 500 & percent.mt <= 10  
+```{r}
+obj.srt@meta.data %>% filter(predicted_doublet == "False") %>% filter(nCount_RNA >= 500 & percent.mt <= 10) %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(colnames = c("sample", "Number of cells"), caption = "nCount_RNA >= 500 & percent.mt <= 10")
+```
+
+
+
+## nCount_RNA >= 1000 & percent.mt <= 10  
+```{r}
+obj.srt@meta.data %>% filter(predicted_doublet == "False") %>% filter(nCount_RNA >= 1000 & percent.mt <= 10) %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(colnames = c("sample", "Number of cells"), caption = "nCount_RNA >= 1000 & percent.mt <= 10")
+```
+
+<!-- # UMAP  -->
+
+<!-- ## UMAP by sample -->
+
+
+<!-- ```{r, fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- DimPlot(obj.srt, group.by = 'orig.ident') -->
+<!-- ``` -->
+
+<!-- ## UMAP by treatment   -->
+<!-- ```{r, fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- DimPlot(obj.srt, group.by = 'sample') -->
+<!-- ``` -->
+
+<!-- ```{r, fig.width=13, fig.height=4} -->
+<!-- DimPlot(obj.srt, group.by = 'sample', split.by = 'sample', ncol = 4) -->
+<!-- ``` -->
+
+
+<!-- Distribution of number of cells  -->
+
+<!-- ```{r} -->
+<!-- obj.srt@meta.data %>% select(orig.ident) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample') -->
+<!-- obj.srt@meta.data %>% select(orig.ident,sample) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by sample and treatment') -->
+
+<!-- ``` -->
+
+
+<!-- # Cluster based on the resolutions    -->
+
+<!-- ```{r} -->
+<!-- resolution_values <- c(0.2, 0.4, 0.8, 1) -->
+<!-- ``` -->
+
+<!-- ## Clusters with the resolution of 0.2   -->
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=1 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res) -->
+<!-- ``` -->
+
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=1 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank())  -->
+<!-- ``` -->
+
+
+<!-- Cell number distribution   -->
+<!-- ```{r} -->
+<!-- # Use !! to unquote the variable within select -->
+<!-- #sym(): 이 함수는 문자열에서 심볼(symbol)을 생성하는 데 사용됩니다. 다시 말해, 문자열을 데이터 프레임이나 환경의 문맥에서 평가할 수 있는 심볼로 변환합니다. 여러분의 경우, 열 이름 (예: "RNA_snn_res.0.2")을 문자열에서 심볼로 변환하는 데 사용됩니다. -->
+
+<!-- # !!: 이것은 비인용 연산자입니다. 이 연산자는 R에게 뒤따라오는 표현식을 tidyverse 함수의 문맥 내에서 평가하도록 지시합니다. !!sym()을 사용하면 사실상 sym()에 의해 생성된 심볼을 평가하고 select() 함수에 대체시킵니다. -->
+
+<!-- obj.srt@meta.data %>% select(!!sym(res)) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- ``` -->
+
+<!-- ## Clusters with the resolution of 0.4     -->
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=2 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res) -->
+<!-- ``` -->
+
+
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=2 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank())  -->
+<!-- ``` -->
+
+
+<!-- Cell number distribution   -->
+<!-- ```{r} -->
+
+<!-- # Use !! to unquote the variable within select -->
+<!-- #sym(): 이 함수는 문자열에서 심볼(symbol)을 생성하는 데 사용됩니다. 다시 말해, 문자열을 데이터 프레임이나 환경의 문맥에서 평가할 수 있는 심볼로 변환합니다. 여러분의 경우, 열 이름 (예: "RNA_snn_res.0.2")을 문자열에서 심볼로 변환하는 데 사용됩니다. -->
+
+<!-- # !!: 이것은 비인용 연산자입니다. 이 연산자는 R에게 뒤따라오는 표현식을 tidyverse 함수의 문맥 내에서 평가하도록 지시합니다. !!sym()을 사용하면 사실상 sym()에 의해 생성된 심볼을 평가하고 select() 함수에 대체시킵니다. -->
+
+<!-- obj.srt@meta.data %>% select(!!sym(res)) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- ``` -->
+
+
+<!-- ## Clusters with the resolution of 0.8    -->
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=3 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res) -->
+<!-- ``` -->
+
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=3 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank())  -->
+<!-- ``` -->
+
+<!-- Cell number distribution   -->
+<!-- ```{r} -->
+
+<!-- obj.srt@meta.data %>% select(!!sym(res)) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- ``` -->
+
+
+<!-- ## Clusters with the resolution of 1    -->
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=4 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res) -->
+<!-- ``` -->
+
+<!-- ```{r,fig.width=7, fig.height=6, out.width='80%'} -->
+<!-- i=4 -->
+<!-- res= paste0("RNA_snn_res.", resolution_values[i]) -->
+<!-- DimPlot(obj.srt, group.by = res, label = T, label.box = T, label.size = 3) + theme(plot.title = element_blank())  -->
+<!-- ``` -->
+
+<!-- ### Cell number distribution   -->
+<!-- ```{r} -->
+<!-- # Use !! to unquote the variable within select -->
+<!-- #sym(): 이 함수는 문자열에서 심볼(symbol)을 생성하는 데 사용됩니다. 다시 말해, 문자열을 데이터 프레임이나 환경의 문맥에서 평가할 수 있는 심볼로 변환합니다. 여러분의 경우, 열 이름 (예: "RNA_snn_res.0.2")을 문자열에서 심볼로 변환하는 데 사용됩니다. -->
+
+<!-- # !!: 이것은 비인용 연산자입니다. 이 연산자는 R에게 뒤따라오는 표현식을 tidyverse 함수의 문맥 내에서 평가하도록 지시합니다. !!sym()을 사용하면 사실상 sym()에 의해 생성된 심볼을 평가하고 select() 함수에 대체시킵니다. -->
+
+<!-- obj.srt@meta.data %>% select(!!sym(res)) %>% table() %>% data.frame() %>% DT::datatable(caption = 'Number of Cells by clusters') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- obj.srt@meta.data %>% select(!!sym(res), orig.ident, sample) %>% table() %>% data.frame() %>% tidyr::spread(sample, Freq) %>% DT::datatable(caption = 'Number of Cells by clusters and treatment') -->
+<!-- ``` -->
+
+
+<!-- # Find markers    -->
+
+<!-- resolutions : 0.2, 0.4, 0.8, 1    -->
+<!-- ```{r, eval=FALSE, echo=F} -->
+<!-- # Marker gene Identification  -->
+<!-- find_and_save_markers <- function(obj.srt, cluster_id, logfc_threshold = 1.2,  -->
+<!--                                   test_method = 'wilcox', min_percent = 0.25) { -->
+<!--   Idents(obj.srt) = cluster_id -->
+<!--   all.markers = FindAllMarkers(obj.srt, logfc.threshold = log2(logfc_threshold),  -->
+<!--                                only.pos = TRUE,  -->
+<!--                                test.use = test_method, min.pct = min_percent) -->
+<!--   return(all.markers) -->
+<!-- } -->
+<!-- # apply: -->
+
+<!-- resolution_values <- c(0.2, 0.4, 0.8, 1) -->
+
+<!-- # Loop through each resolution value -->
+<!-- for (resolution_number in resolution_values) { -->
+<!--   # Construct the resolution name -->
+<!--   res <- paste0("RNA_snn_res.", resolution_number) -->
+<!--   all.markers= find_and_save_markers(obj.srt= obj.srt, cluster_id = res,  -->
+<!--                                    logfc_threshold = 1.2, test_method = 'wilcox', min_percent = 0.25) -->
+<!--   output_file = paste0(dir,"data/mks/Takeda_", res, ".markers.csv") -->
+<!--   write.csv(all.markers, file = output_file, row.names = T) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- # Marker genes  -->
+
+<!-- ## resolution 0.2   -->
+
+<!-- Download cluster marker file -->
+<!-- ```{r} -->
+<!-- resolution_number = 0.2 -->
+<!-- res= paste0("RNA_snn_res.", resolution_number) -->
+<!-- res -->
+<!-- mks = read.csv(paste0(dir,"data/mks/Takeda_", res, ".markers.csv"), row.names = 1) -->
+<!-- len =length(levels(obj.srt@meta.data[,res])) -->
+<!-- DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len)) -->
+<!-- ``` -->
+
+
+<!-- ## resolution 0.4   -->
+
+<!-- Download cluster marker file -->
+<!-- ```{r} -->
+<!-- resolution_number = 0.4 -->
+<!-- res= paste0("RNA_snn_res.", resolution_number) -->
+<!-- res -->
+<!-- mks = read.csv(paste0(dir,"data/mks/Takeda_", res, ".markers.csv"), row.names = 1) -->
+<!-- len =length(levels(obj.srt@meta.data[,res])) -->
+<!-- DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len)) -->
+<!-- ``` -->
+
+
+<!-- ## resolution 0.8   -->
+
+<!-- Download cluster marker file -->
+<!-- ```{r} -->
+<!-- resolution_number = 0.8 -->
+<!-- res= paste0("RNA_snn_res.", resolution_number) -->
+<!-- res -->
+<!-- mks = read.csv(paste0(dir,"data/mks/Takeda_", res, ".markers.csv"), row.names = 1) -->
+<!-- len =length(levels(obj.srt@meta.data[,res])) -->
+<!-- DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len)) -->
+<!-- ``` -->
+
+
+<!-- ## resolution 1   -->
+
+<!-- Download cluster marker file -->
+<!-- ```{r} -->
+<!-- resolution_number = 1 -->
+<!-- res= paste0("RNA_snn_res.", resolution_number) -->
+<!-- res -->
+<!-- mks = read.csv(paste0(dir,"data/mks/Takeda_", res, ".markers.csv"), row.names = 1) -->
+<!-- len =length(levels(obj.srt@meta.data[,res])) -->
+<!-- DT::datatable(mks, editable = TRUE, extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=len)) -->
+<!-- ``` -->
