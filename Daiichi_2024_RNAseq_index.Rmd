@@ -1,0 +1,93 @@
+---
+title: "2024 Daiichi DS1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+### Introduction
+
+Paweletz lab  
+2024.06.10
+<br> 
+
+[**2024_Daiichi_DS1062a_bulk**](Daiichi_2024_RNAseq_introduction.html)
+
+* Experimental Conditions
+* Raw data locations
+* Dropbox link
+* MultiQC report
+
+
+## Analysis Report 
+
+
+### Patient 30342  
+
+
+* [**PCA & Data matrix (combined report)**](30342/Daiichi_2024_bulk_30342_PCA_TPM_combined.html)
+* [**PCA Plot**](30342/Daiichi_2024_bulk_30342_PCA.html)
+* [**TPM matrix/count table download**](30342/Daiichi_2024_bulk_30342_TPM.html)
+* [**ssGSEA**](30342/Daiichi_2024_bulk_30342_ssGSEA_update.24.06.25.html)
+  * HALLMARK pathways
+  * scRNA-seq celltype marker genes
+<!-- * [**Immune Cell Type Composition (TIMER test)**](30342/Daiichi_2024_bulk_30342_timer.html) -->
+* [**DEG Analysis (1)**](30342/DEG/Daiichi_2024_bulk_30342_DEG1_update.24.06.25.html)
+  * Dxd/DMSO
+  * IgG-Dxd/DMSO
+  * DS-1062a/DMSO<br>
+  * [Comparison of 3 DEGs (UP/DN)](30342/DEG/Daiichi_2024_bulk_30342_DEG1_comparison_update.html)
+  <br>
+* [**DEG Analysis (2)**](30342/DEG/Daiichi_2024_bulk_30342_DEG2_DS1062a_comparions.html)
+  * DS-1062a/Dxd
+  * DS-1062a/IgG-Dxd
+  * Comprison of 2 DEGs (UP/DN)<br>
+* [**DEG Analysis (3)**](30342/DEG/Daiichi_2024_bulk_30342_DEG_3.html)
+  * IgG-Dxd/Dxd
+
+<!-- * [Cancer Cell feature scoring in samples (preparing)]() -->
+
+
+
+### Patient 30348  
+
+* [**PCA Plot**](30348/Daiichi_2024_bulk_30348_PCA.html)
+* [**TPM matrix/count table download**](30348/Daiichi_2024_bulk_30348_TPM.html)
+* [**ssGSEA**](30348/Daiichi_2024_bulk_30348_ssGSEA.html)
+  * HALLMARK pathways
+  * scRNA-seq celltype marker genes
+<!-- * [**DEG Analysis (1)**](30348/DEG/Daiichi_2024_bulk_30348_DEG.html) -->
+<!--   * Dxd/DMSO -->
+<!--   * IgG-Dxd/DMSO -->
+<!--   * DS-1062a/DMSO<br> -->
+<!--   * [Comparison of 3 DEGs (UP/DN)](30348/DEG/Daiichi_2024_bulk_30348_DEG_DS1062a_comparions.html) -->
+<!--   <br> -->
+
+
+
+
