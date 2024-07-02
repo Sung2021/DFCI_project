@@ -1,0 +1,110 @@
+---
+title: "2024 Daiichi DXD"
+subtitle: "scRNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+### 30348 bulk RNA-seq {.tabset}  
+
+processing : ReadStar_output_to_matrix.24.06.13.R  
+STAR output  
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30348/star_readspergeneoutP30348.rawData.count.tpm.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() 
+```
+
+
+#### PCA plot  
+
+```{r}
+library(DESeq2)
+```
+
+
+```{r}
+count.mtx = counts
+se <- SummarizedExperiment(as.matrix(count.mtx), 
+                           colData=DataFrame(sample=1:ncol(count.mtx)))
+dds <- DESeqDataSet(se, ~ 1)
+dds$sample = colnames(dds)
+dds$group = c(rep("DMSO", 3), 
+              rep("Dxd", 3),
+              rep("IgG_DxD", 3),
+              rep("DS1062a", 3))
+vsd <- vst(dds, blind=FALSE)
+
+pcaData <- DESeq2::plotPCA(vsd, intgroup = "sample", returnData = TRUE)
+pcaData$group = dds$group
+PCA_var=attr(pcaData, "percentVar")
+```
+
+
+```{r, fig.width=6, fig.height=5}
+ggplot(pcaData, aes(x = PC1, y = PC2, fill = group)) +
+  geom_point(size = 4, alpha = 0.6, shape = 21, color = "black", stroke = 0.5)  +
+  ggrepel::geom_text_repel(aes(label=name), 
+                           color="grey6", size=3, hjust= -0.3, vjust=-0.3) +
+  labs(x = paste("PC1: ", round(100 * PCA_var[1]), "% variance"),
+       y = paste("PC2: ", round(100 * PCA_var[2]), "% variance")) +
+  theme_bw() +
+  theme(legend.title = element_blank()) +
+  ggtitle("PCA") +
+  labs(caption = " ")
+```
+
+#### PCA plot by group  
+
+```{r, fig.width=8, fig.height=7}
+ggplot(pcaData, aes(x = PC1, y = PC2, fill = group)) +
+  geom_point(size = 4, alpha = 0.6, shape = 21, color = "black", stroke = 0.5)  +
+  ggrepel::geom_text_repel(aes(label=name), 
+                           color="grey6", size=3, hjust= -0.3, vjust=-0.3) +
+  labs(x = paste("PC1: ", round(100 * PCA_var[1]), "% variance"),
+       y = paste("PC2: ", round(100 * PCA_var[2]), "% variance")) +
+  theme_bw() +
+  theme(legend.title = element_blank(), legend.position = "none") +
+  ggtitle("PCA") +
+  labs(caption = " ") +
+  facet_wrap(.~group, ncol = 2)
+
+```

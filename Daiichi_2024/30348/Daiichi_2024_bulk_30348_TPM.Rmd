@@ -1,0 +1,85 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: "bulk RNA-seq"
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+### 30348 data matrix {.tabset}  
+
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30348/star_readspergeneoutP30348.rawData.count.tpm.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() 
+```
+
+#### TPM table  
+
+```{r}
+tpms = count_TPM_matrix_all$tpm
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+# tpms %>% nrow() # 22845
+```
+
+
+```{r}
+tpms %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+
+```
+
+
+#### TPM distribution  
+```{r}
+tpms %>% reshape::melt() %>% ggplot(aes(x= value, fill= variable)) + geom_boxplot() + coord_flip() + scale_x_log10() + 
+  theme_bw() +
+  theme(legend.title = element_blank()) + xlab("") 
+```
+
+
+#### count table  
+
+```{r}
+counts %>% DT::datatable(extensions = "Buttons", options = list(dom="Bfrtip", buttons=c("csv","excel"), pageLength=10))
+
+```
+

@@ -1,0 +1,360 @@
+---
+title: "2024 Daiichi DS-1062a"
+subtitle: ""
+author: "Sung Rye Park"
+date: "`r format(Sys.Date())`"
+output:  
+  rmdformats::robobook: 
+    code_folding: hide 
+    number_sections: FALSE
+    toc_depth: 6
+    toc_float: false
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=F, fig.align = "left", 
+                      message=F, warning=F,
+                      results = "markup",
+                      error = TRUE,
+                      highlight = TRUE,
+                      prompt = FALSE,
+                      tidy = FALSE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(DT)
+```
+
+
+```{r}
+dir = "~/Desktop/DF/DFCI_Paweletz/2024_Daiichi_bulk_RNAseq/"
+```
+
+### 30348 bulk RNA-seq {.tabset}  
+
+
+```{r}
+count_TPM_matrix_all = readRDS(paste0(dir,"raw_data/30348/star_readspergeneoutP30348.rawData.count.tpm.rds"))
+```
+
+
+```{r}
+counts = count_TPM_matrix_all$count
+
+# Remove genes with no expression across samples 
+counts = counts[rowSums(counts) !=0,]
+# counts %>% nrow() 
+```
+
+
+```{r}
+tpms = count_TPM_matrix_all$tpm
+
+# match the rownames with counts 
+tpms = tpms[rownames(counts),]
+# tpms %>% nrow() # 22845
+```
+
+
+
+### ssGSEA {.tabset}  
+
+
+#### HALLMARK  
+```{r}
+library(clusterProfiler)
+hallmark <- msigdbr::msigdbr(species = "Homo sapiens", category = "H") %>% 
+  dplyr::select(gs_name, gene_symbol)
+
+```
+
+```{r}
+gs_names = hallmark$gs_name %>% unique()
+
+hallmakrList = list()
+
+# 리스트 초기화
+hallmarkList <- list()
+
+# 반복문을 사용하여 각 고유 gs_name에 대해 필터링 및 리스트 생성
+for (i in seq_along(gs_names)) {
+  hallmarkList[[gs_names[i]]] <- hallmark %>% 
+    filter(gs_name == gs_names[i]) %>% 
+    dplyr::select(gene_symbol) %>% 
+    pull()
+}
+```
+
+
+```{r}
+## Perform ssgsea 
+library(corto)
+
+## Input data : tpm (count.mtx is accepted as well) 
+test = ssgsea(tpms,hallmarkList)
+
+## Reshape it to plot 
+test.df = test %>% t() %>% data.frame()
+rownames(test.df) = colnames(tpms)
+
+## p value of ssgsea 
+pval = corto::z2p(test)
+colnames(pval) = rownames(test.df)
+```
+
+
+```{r, fig.width=10, fig.height=8}
+# meta = colData(dds) 
+# anno.col = meta[,"cond"] %>% as.data.frame()
+# rownames(anno.col) = rownames(meta)
+# colnames(anno.col) = "sample"
+# anno.col = anno.col %>% arrange(sample)
+
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(70),
+           colorRampPalette(colors = c("white","#D35400"))(70))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of HALLMARK pathways",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+# t(test.df[rownames(anno.col),]) %>% pheatmap::pheatmap(color = my.color, 
+#                                   cluster_rows = T,
+#                                   cluster_cols = F,
+#                                   main = "ssGSEA of HALLMARK pathways",
+#                                   show_rownames = T,
+#                                   show_colnames = F,
+#                                   annotation_col = anno.col,
+#                                   fontsize_row = 7) # Simple heatmap 
+```
+
+#### scRNA-seq + bulk RNA-seq  
+
+<br>
+<img src="../img/ssGSEA_scRNA_mks.240614.png" width="80%" height="auto"> 
+<br>
+
+
+#### scRNA-seq res 0.2 markers  
+```{r}
+mks = read.csv(paste0(dir,"data/mks/Daiichi_30348_RNA_snn_res.0.2.markers.csv"), row.names = 1)
+```
+
+```{r}
+gs_names = unique(mks$cluster)
+# 리스트 초기화
+geneList <- list()
+
+# 반복문을 사용하여 각 고유 gs_name에 대해 필터링 및 리스트 생성
+for (i in seq_along(gs_names)) {
+  geneList[[paste0("Cluster_",gs_names[i])]] <- mks %>% 
+    filter(cluster == gs_names[i]) %>% 
+    dplyr::select(gene) %>% 
+    pull()
+}
+
+```
+
+
+```{r}
+library(corto)
+
+## Input data : tpm (count.mtx is accepted as well) 
+test = ssgsea(tpms,geneList)
+
+## Reshape it to plot 
+test.df = test %>% t() %>% data.frame()
+rownames(test.df) = colnames(tpms)
+
+## p value of ssgsea 
+pval = corto::z2p(test)
+colnames(pval) = rownames(test.df)
+```
+
+
+```{r, fig.width=8, fig.height=6}
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(50),
+           colorRampPalette(colors = c("white","#D35400"))(33))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of scRNA-seq res 0.2 markers",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+```
+
+#### scRNA-seq res 0.2 markers with annotation   
+
+```{r}
+cell_types <- c("Epithelial cells (Cancer Cells) 1",
+                "T cells",
+                "Epithelial cells (Cancer Cells) 2",
+                "Fibroblasts",
+                "macrophages",
+                "dendritic cells",
+                "B cells",
+                "granulocytes",
+                "Vascular endothelial cells",
+                "Cancer Cell (Mucosal cells)")
+
+colnames(test.df) = cell_types
+```
+
+
+```{r, fig.width=8, fig.height=6}
+## Heatmap 
+my.color=c(colorRampPalette(colors = c("#2874A6","white"))(50),
+           colorRampPalette(colors = c("white","#D35400"))(33))
+
+t(test.df) %>% pheatmap::pheatmap(color = my.color, 
+                                  cluster_rows = T,
+                                  cluster_cols = F,
+                                  main = "ssGSEA of scRNA-seq res 0.2 markers",
+                                  show_rownames = T,
+                                  show_colnames = T,
+                                  fontsize_row = 7,
+                                  gaps_col = c(3,6,9)) # Simple heatmap 
+```
+
+
+
+<!-- ### TPM pheatmap by scRNA-seq markers {.tabset}  -->
+
+<!-- #### Cluster: Cell Type -->
+<!-- ```{r} -->
+<!-- cell_types <- c("Epithelial cells (Cancer Cells) 1", -->
+<!--                 "T cells", -->
+<!--                 "Epithelial cells (Cancer Cells) 2", -->
+<!--                 "Fibroblasts", -->
+<!--                 "macrophages", -->
+<!--                 "dendritic cells", -->
+<!--                 "B cells", -->
+<!--                 "granulocytes", -->
+<!--                 "Vascular endothelial cells", -->
+<!--                 "Cancer Cell (Mucosal cells)") -->
+<!-- df = cell_types %>% as.data.frame() -->
+<!-- df$scRNAseq_cluster = c(paste0("cluster", 0:9)) -->
+<!-- df %>% DT::datatable(options = list(pageLength=nrow(df)), rownames = F) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- # define zscore function  -->
+<!-- zscore <- function(input.data = input.data){ -->
+<!--   input.data.rowsums <- rowSums(input.data) -->
+<!--   input.data.mean <- rowMeans(input.data) -->
+<!--   input.data.sd <- matrixStats::rowSds(as.matrix(input.data)) -->
+<!--   names(input.data.sd) <- rownames(input.data) -->
+<!--   zscore <- (input.data-input.data.mean)/input.data.sd -->
+<!--   return(zscore) -->
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- pheatmap_cluster_mks = function(i,n){ -->
+<!--   genes = mks %>% filter(cluster ==i) %>% arrange(desc(avg_log2FC)) %>% head(n) %>% rownames() -->
+<!-- genes = genes[genes %in% rownames(tpms)] -->
+
+<!-- input.data = zscore(tpms[genes,]) -->
+<!-- my.color=c(colorRampPalette(colors = c("#2874A6","white"))(50), -->
+<!--            colorRampPalette(colors = c("white","#D35400"))(33)) -->
+<!-- input.data %>% pheatmap::pheatmap(color = my.color,  -->
+<!--                                   cluster_cols = F,  -->
+<!--                                   gaps_col = c(3,6,9), -->
+<!--                                   main = paste0("cluster ",i, " top ", n, " genes")) -->
+
+<!-- } -->
+<!-- ``` -->
+
+
+<!-- #### Cluster 0   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 0 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+
+<!-- #### Cluster 1   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 1 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+<!-- #### Cluster 2   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 2 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+
+<!-- #### Cluster 3   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 3 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+
+
+<!-- #### Cluster 4   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 4 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+<!-- #### Cluster 5   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 5 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+
+
+<!-- #### Cluster 6   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 6 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+<!-- #### Cluster 7   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 7 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+<!-- #### Cluster 8   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 8 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
+
+<!-- #### Cluster 9   -->
+<!-- ```{r, fig.width=8, fig.height=8, out.width= "80%"} -->
+<!-- i = 9 -->
+<!-- n= 50 -->
+<!-- pheatmap_cluster_mks(i = i,n = n) -->
+<!-- ``` -->
+
